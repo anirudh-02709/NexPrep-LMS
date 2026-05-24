@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexPrep - Tests</title>
+  <link rel="stylesheet" href="../styles/style.css">
+</head>
+<body>
+
+<div class="home">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <h2>NexPrep</h2>
+    <div class="nav">
+      <p onclick="window.location.href='home.html'">Home</p>
+      <p onclick="window.location.href='dashboard.html'">Dashboard</p>
+      <p class="active">Test</p>
+      <p onclick="window.location.href='history.html'">History</p>
+      <p onclick="window.location.href='profile.html'">Profile</p>
+      <p onclick="logout()">Logout</p>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+    <div id="test-container"></div>
+  </div>
+
+</div>
+
+<script src="../scripts/auth.js"></script>
+<script src="../scripts/authGuard.js"></script>
+<script src="../scripts/config.js"></script>
+<script src="../scripts/test.js"></script>
+</body>
+</html>

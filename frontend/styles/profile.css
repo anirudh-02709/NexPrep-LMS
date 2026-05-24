@@ -1,0 +1,171 @@
+:root {
+  --navy-2: #0d1628;
+  --navy-3: #111e35;
+  --navy-4: #162240;
+  --border: rgba(100,140,220,0.12);
+  --border-glow: rgba(99,179,237,0.3);
+  --accent: #3b82f6;
+  --accent-2: #60a5fa;
+  --gold: #f59e0b;
+  --text: #e2e8f0;
+  --muted: #6b7a96;
+  --muted-2: #8896b0;
+  --success: #10b981;
+  --font-head: 'Syne', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+}
+
+/* Profile card sits inside .content */
+.profile-card {
+  margin-top: 30px;
+  background: var(--navy-2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2.5rem 2rem;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-card::before {
+  content: '';
+  position: absolute;
+  top: -100px; left: -100px;
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(59,130,246,0.10) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.profile-card::after {
+  content: '';
+  position: absolute;
+  bottom: -80px; right: -80px;
+  width: 240px; height: 240px;
+  background: radial-gradient(circle, rgba(245,158,11,0.07) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Avatar */
+.avatar-circle {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--success));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-head);
+  font-size: 2rem;
+  font-weight: 700;
+  color: #fff;
+  border: 2px solid var(--border-glow);
+  position: relative;
+  z-index: 1;
+}
+
+.profile-name {
+  font-family: var(--font-head);
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  position: relative;
+  z-index: 1;
+}
+
+.profile-email {
+  font-size: 0.88rem;
+  color: var(--muted-2);
+  position: relative;
+  z-index: 1;
+}
+
+/* Badge */
+.demo-badge {
+  background: rgba(59,130,246,0.1);
+  border: 1px solid rgba(59,130,246,0.3);
+  color: var(--accent-2);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.3rem 0.9rem;
+  border-radius: 999px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Stats */
+.profile-stats {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.stat-box {
+  flex: 1;
+  background: var(--navy-3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.85rem 0.5rem;
+  text-align: center;
+}
+
+.stat-box .stat-num {
+  font-family: var(--font-head);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.stat-box .stat-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-top: 0.2rem;
+}
+
+/* Tags */
+.subject-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.tag {
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  border: 1px solid;
+}
+
+.tag-physics   { background: rgba(59,130,246,0.1);  border-color: rgba(59,130,246,0.3);  color: #93c5fd; }
+.tag-chemistry { background: rgba(16,185,129,0.1);  border-color: rgba(16,185,129,0.3);  color: #6ee7b7; }
+.tag-maths     { background: rgba(245,158,11,0.1);  border-color: rgba(245,158,11,0.3);  color: #fcd34d; }
+
+/* Logout */
+.btn-logout {
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted-2);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  position: relative;
+  z-index: 1;
+}
+
+.btn-logout:hover {
+  border-color: rgba(239,68,68,0.4);
+  color: #f87171;
+}

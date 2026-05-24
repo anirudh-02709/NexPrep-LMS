@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexPrep - Profile</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../styles/style.css">
+    <link rel="stylesheet" href="../styles/profile.css">
+</head>
+<body>
+
+<div class="home">
+
+    <div class="sidebar">
+        <h2>NexPrep</h2>
+        <div class="nav">
+            <p onclick="window.location.href='home.html'">Home</p>
+            <p onclick="window.location.href='dashboard.html'">Dashboard</p>
+            <p onclick="window.location.href='test.html'">Test</p>
+            <p onclick="window.location.href='history.html'">History</p>
+            <p class="active">Profile</p>
+            <p onclick="logout()">Logout</p>
+        </div>
+    </div>
+
+    <div class="content">
+        <button class="back-btn" onclick="window.location.href='home.html'">← Back to Home</button>
+        <h1>Your Profile</h1>
+        <p>Manage your account details</p>
+        <p id="profile-message" class="page-message">Loading profile...</p>
+
+        <div class="profile-card">
+
+            <div class="avatar-circle">
+                <span id="avatar-initials">?</span>
+            </div>
+
+            <h2 id="profile-username" class="profile-name">Loading...</h2>
+            <p id="profile-email" class="profile-email">Loading...</p>
+
+            <span class="demo-badge">JEE Aspirant</span>
+
+            <div class="profile-stats">
+                <div class="stat-box">
+                    <div class="stat-num" id="profile-tests-taken">0</div>
+                    <div class="stat-label">Tests Taken</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-num" id="profile-avg-score">0%</div>
+                    <div class="stat-label">Avg Score</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-num">0</div>
+                    <div class="stat-label">Streak Days</div>
+                </div>
+            </div>
+
+            <div class="subject-tags">
+                <span class="tag tag-physics">Physics</span>
+                <span class="tag tag-chemistry">Chemistry</span>
+                <span class="tag tag-maths">Mathematics</span>
+            </div>
+
+            <button class="btn-logout" onclick="logout()">Log out</button>
+
+        </div>
+    </div>
+
+</div>
+
+<script src="../scripts/auth.js"></script>
+<script src="../scripts/authGuard.js"></script>
+<script src="../scripts/config.js"></script>
+<script src="../scripts/profile.js"></script>
+</body>
+</html>

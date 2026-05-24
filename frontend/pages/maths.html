@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Maths</title>
+  <link rel="stylesheet" href="../styles/style.css">
+</head>
+<body>
+
+<div class="home">
+
+  <div class="sidebar">
+    <h2>NexPrep</h2>
+    <div class="nav">
+      <p onclick="window.location.href='home.html'">Home</p>
+      <p onclick="window.location.href='dashboard.html'">Dashboard</p>
+      <p onclick="window.location.href='test.html'">Test</p>
+      <p onclick="window.location.href='history.html'">History</p>
+      <p onclick="window.location.href='profile.html'">Profile</p>
+      <p onclick="logout()">Logout</p>
+    </div>
+  </div>
+
+  <div class="content">
+    <button class="back-btn" onclick="window.location.href='home.html'">← Back to Home</button>
+    <h1>Maths</h1>
+    <p>Select a chapter to start learning</p>
+    <div class="chapters">
+      <a href="chapter.html?name=quadraticequations" class="card">Quadratic Equations</a>
+      <a href="chapter.html?name=sequences" class="card">Sequences & Series</a>
+      <a href="chapter.html?name=limits" class="card">Limits & Derivatives</a>
+      <a href="chapter.html?name=matrices" class="card">Matrices</a>
+    </div>
+  </div>
+
+</div>
+
+<script src="../scripts/auth.js"></script>
+<script src="../scripts/authGuard.js"></script>
+</body>
+</html>

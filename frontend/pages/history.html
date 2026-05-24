@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexPrep - Test History</title>
+  <link rel="stylesheet" href="../styles/style.css">
+</head>
+<body>
+
+<div class="home">
+
+  <div class="sidebar">
+    <h2>NexPrep</h2>
+    <div class="nav">
+      <p onclick="window.location.href='home.html'">Home</p>
+      <p onclick="window.location.href='dashboard.html'">Dashboard</p>
+      <p onclick="window.location.href='test.html'">Test</p>
+      <p class="active">History</p>
+      <p onclick="window.location.href='profile.html'">Profile</p>
+      <p onclick="logout()">Logout</p>
+    </div>
+  </div>
+
+  <div class="content">
+    <button class="back-btn" onclick="window.location.href='home.html'">← Back to Home</button>
+    <h1>Test History</h1>
+    <p>Your latest saved test results</p>
+    <p id="history-status" class="page-message">Loading test history...</p>
+    <div id="history-list" class="chapters"></div>
+  </div>
+
+</div>
+
+<script src="../scripts/auth.js"></script>
+<script src="../scripts/authGuard.js"></script>
+<script src="../scripts/config.js"></script>
+<script src="../scripts/chapterNames.js"></script>
+<script src="../scripts/history.js"></script>
+</body>
+</html>

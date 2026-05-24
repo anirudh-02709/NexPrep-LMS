@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NexPrep - Login</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="../styles/login.css">
+</head>
+
+<body>
+
+<div class="brand-panel">
+  <div class="logo">NexPrep</div>
+
+  <div class="subject-tags">
+    <span class="tag tag-physics">Physics</span>
+    <span class="tag tag-chemistry">Chemistry</span>
+    <span class="tag tag-maths">Mathematics</span>
+  </div>
+
+  <h1 class="brand-heading">
+    Crack JEE<br />with <span>precision</span><br />& clarity.
+  </h1>
+
+  <p class="brand-sub">
+    Adaptive tests, curated concepts, and deep analytics — built for serious 
+    JEE aspirants who want more than mock tests.
+  </p>
+
+  <div class="stats-row">
+    <div class="stat">
+      <div class="stat-num">12,400+</div>
+      <div class="stat-label">Questions</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">340+</div>
+      <div class="stat-label">Concepts</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">98%</div>
+      <div class="stat-label">Syllabus coverage</div>
+    </div>
+  </div>
+</div>
+
+<div class="form-panel" style="position:relative;">
+  <div class="form-box">
+    <h2 class="form-title">Welcome back</h2>
+    <p class="form-subtitle">Sign in to continue your preparation</p>
+
+    <!-- NAME FIELD — newly added -->
+    <div class="input-group">
+      <label>Full Name</label>
+      <input type="text" id="nameInput" placeholder="Raj Sharma" />
+    </div>
+
+    <div class="input-group">
+      <label>Email address</label>
+      <input type="email" id="emailInput" placeholder="you@example.com" />
+    </div>
+
+    <div class="input-group">
+      <label>Password</label>
+      <input type="password" id="passwordInput" placeholder="••••••••" />
+      <a href="#" class="forgot">Forgot password?</a>
+    </div>
+
+    <p id="login-message" class="form-message"></p>
+
+    <button id="signInButton" class="btn-primary" onclick="handleSignIn()">Sign in</button>
+
+    <div class="divider">or</div>
+
+    <button id="googleButton" class="btn-google" onclick="handleGoogleLogin()">
+      Continue with Google
+    </button>
+
+    <p class="register-link">Don't have an account? <a href="#">Register free</a></p>
+  </div>
+</div>
+
+<script src="../scripts/config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.7.0/firebase-auth-compat.js"></script>
+<script src="../scripts/firebaseConfig.js"></script>
+<script src="../scripts/login.js"></script>
+</body>
+</html>

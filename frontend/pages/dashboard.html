@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexPrep - Dashboard</title>
+  <link rel="stylesheet" href="../styles/style.css">
+</head>
+<body>
+
+<div class="home">
+
+  <div class="sidebar">
+    <h2>NexPrep</h2>
+    <div class="nav">
+      <p onclick="window.location.href='home.html'">Home</p>
+      <p class="active">Dashboard</p>
+      <p onclick="window.location.href='test.html'">Test</p>
+      <p onclick="window.location.href='history.html'">History</p>
+      <p onclick="window.location.href='profile.html'">Profile</p>
+      <p onclick="logout()">Logout</p>
+    </div>
+  </div>
+
+  <div class="content">
+    <button class="back-btn" onclick="window.location.href='home.html'">← Back to Home</button>
+    <h1>Dashboard</h1>
+    <p>Your learning progress at a glance</p>
+    <p id="dashboard-status" class="page-message">Loading dashboard...</p>
+
+    <div class="subjects">
+      <div class="card">
+        <div id="total-tests">0</div>
+        <div class="card-sub">Tests Attempted</div>
+      </div>
+      <div class="card">
+        <div id="average-score">0%</div>
+        <div class="card-sub">Average Score</div>
+      </div>
+      <div class="card">
+        <div id="latest-test">No tests yet</div>
+        <div class="card-sub">Latest Test</div>
+      </div>
+    </div>
+
+    <h1>Subject Stats</h1>
+    <p>Tests attempted by subject</p>
+    <div id="subject-stats" class="chapters"></div>
+  </div>
+
+</div>
+
+<script src="../scripts/auth.js"></script>
+<script src="../scripts/authGuard.js"></script>
+<script src="../scripts/config.js"></script>
+<script src="../scripts/chapterNames.js"></script>
+<script src="../scripts/dashboard.js"></script>
+</body>
+</html>
