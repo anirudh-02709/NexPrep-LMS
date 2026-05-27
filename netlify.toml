@@ -1,0 +1,45 @@
+# Netlify Configuration for NexPrep LMS Frontend
+
+# Build settings
+[build]
+  # Publish directory - contains pages, styles, and scripts folders
+  publish = "frontend"
+  # No build command needed - static files only
+  command = ""
+
+# Redirect rules for SPA routing
+[[redirects]]
+  # Redirect all non-file requests to index.html for proper routing
+  # This allows direct navigation to pages while maintaining single-page app behavior
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  conditions = { NOT = [{Geo = "country=eo"}] }
+
+# HTTP headers for better security and performance
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Prevent MIME type sniffing
+    X-Content-Type-Options = "nosniff"
+    # Enable XSS protection in older browsers
+    X-XSS-Protection = "1; mode=block"
+    # Allow cross-origin requests to Render backend
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization"
+
+# Cache settings for static assets
+[[headers]]
+  for = "/styles/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/scripts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Environment variables (set these in Netlify UI if needed)
+[env.production]
+  environment = { NODE_ENV = "production" }
