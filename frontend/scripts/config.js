@@ -8,7 +8,7 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
   API_BASE_URL = 'http://localhost:5000';
 } else {
   // Production environment - use the deployed Render backend URL
-  // Update this with your actual Render backend URL
-  API_BASE_URL = 'https://jee-lms-backend.onrender.com';
+  // Set to the actual Render backend URL for NexPrep
+  API_BASE_URL = 'https://nexprep-backend.onrender.com';
 }
 
