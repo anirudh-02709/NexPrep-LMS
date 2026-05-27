@@ -47,6 +47,32 @@ const updateProgress = async (req, res, next) => {
   }
 };
 
+const getContinueLearning = async (req, res, next) => {
+  try {
+    const progress = await Progress.findOne({ user: req.user.id })
+      .sort({ lastOpenedAt: -1 });
+
+    if (!progress) {
+      return res.status(200).json({
+        success: true,
+        progress: null,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      progress: {
+        subject: progress.subject,
+        chapter: progress.chapter,
+        lastOpenedAt: progress.lastOpenedAt,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   updateProgress,
+  getContinueLearning,
 };

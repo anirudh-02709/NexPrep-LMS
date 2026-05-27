@@ -6,6 +6,13 @@ window.onload = async function () {
   const subjectStatsEl = document.getElementById('subject-stats');
   const statusEl = document.getElementById('dashboard-status');
 
+  // AI Insights Elements
+  const weakestSubjectEl = document.getElementById('weakest-subject');
+  const strongestSubjectEl = document.getElementById('strongest-subject');
+  const performanceTrendEl = document.getElementById('performance-trend');
+  const recommendationTextEl = document.getElementById('recommendation-text');
+  const consistencyInsightEl = document.getElementById('consistency-insight');
+
   statusEl.textContent = 'Loading dashboard...';
   statusEl.classList.remove('error', 'success');
 
@@ -40,6 +47,14 @@ window.onload = async function () {
       latestTestEl.textContent = `${getSubjectTitle(dashboard.latestTest.subject)} - ${getChapterTitle(dashboard.latestTest.chapter)}`;
     } else {
       latestTestEl.textContent = 'No tests yet';
+    }
+
+    if (dashboard.insights) {
+      weakestSubjectEl.textContent = dashboard.insights.weakestSubject;
+      strongestSubjectEl.textContent = dashboard.insights.strongestSubject;
+      performanceTrendEl.textContent = dashboard.insights.performanceTrend;
+      recommendationTextEl.textContent = dashboard.insights.recommendation;
+      consistencyInsightEl.textContent = dashboard.insights.consistencyInsight;
     }
 
     const subjects = Object.keys(dashboard.subjectWiseTestCounts);
