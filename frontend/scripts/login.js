@@ -38,7 +38,7 @@ async function handleSignIn() {
     localStorage.setItem('user', JSON.stringify(data.user));
     messageEl.textContent = 'Login successful. Redirecting...';
     messageEl.classList.add('success');
-    window.location.href = 'home.html';
+    window.location.href = '/home.html';
   } catch (error) {
     messageEl.textContent = 'Unable to connect to the server. Please make sure the backend is running.';
   } finally {
@@ -86,7 +86,7 @@ async function handleGoogleLogin() {
     localStorage.setItem('user', JSON.stringify(data.user));
     messageEl.textContent = 'Google login successful. Redirecting...';
     messageEl.classList.add('success');
-    window.location.href = 'home.html';
+    window.location.href = '/home.html';
   } catch (error) {
     messageEl.textContent = 'Google login could not be completed.';
   } finally {

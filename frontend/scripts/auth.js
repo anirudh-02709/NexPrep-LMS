@@ -8,10 +8,10 @@ function getUser() {
 
 function logout() {
   localStorage.clear();
-  window.location.href = 'index.html';
+  window.location.href = '/index.html';
 }
 
 function handleUnauthorized() {
   localStorage.clear();
-  window.location.href = 'index.html';
+  window.location.href = '/index.html';
 }

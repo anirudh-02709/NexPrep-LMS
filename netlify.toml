@@ -7,14 +7,7 @@
   # No build command needed - static files only
   command = ""
 
-# Redirect rules for SPA routing
-[[redirects]]
-  # Redirect all non-file requests to index.html for proper routing
-  # This allows direct navigation to pages while maintaining single-page app behavior
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  conditions = { NOT = [{Geo = "country=eo"}] }
+# Note: No SPA redirects are configured per project requirements.
 
 # HTTP headers for better security and performance
 [[headers]]

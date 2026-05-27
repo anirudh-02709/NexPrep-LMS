@@ -227,7 +227,7 @@ function render() {
 
 function screenMain() {
   return `
-    <button class="back-btn" onclick="window.location.href='home.html'">← Back to Home</button>
+    <button class="back-btn" onclick="window.location.href='/home.html'">← Back to Home</button>
     <h1>Tests</h1>
     <p>Choose how you want to practice</p>
     <div class="subjects">

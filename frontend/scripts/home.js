@@ -40,7 +40,7 @@ async function loadContinueLearning() {
       textEl.textContent = `You were recently studying ${formattedSubject} - ${formattedChapter}.`;
       resumeBtn.style.display = 'inline-block';
       resumeBtn.onclick = () => {
-        window.location.href = `chapter.html?name=${chapter}`;
+        window.location.href = `/chapter.html?name=${chapter}`;
       };
     } else {
       textEl.textContent = 'You haven\'t started studying yet. Select a subject below to begin!';
