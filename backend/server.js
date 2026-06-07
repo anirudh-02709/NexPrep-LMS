@@ -5,7 +5,12 @@ const path = require('path');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-console.log('[Server] FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID);
+console.log('[Server startup] FIREBASE_PROJECT_ID exists:', Boolean(process.env.FIREBASE_PROJECT_ID));
+console.log('[Server startup] FIREBASE_CLIENT_EMAIL exists:', Boolean(process.env.FIREBASE_CLIENT_EMAIL));
+console.log('[Server startup] FIREBASE_PRIVATE_KEY exists:', Boolean(process.env.FIREBASE_PRIVATE_KEY));
+
+const { admin } = require('./config/firebaseAdmin');
+console.log('[Server startup] Firebase Admin apps after initialize:', admin.apps.length);
 
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
