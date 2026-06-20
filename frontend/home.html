@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Home</title>
-  <link rel="stylesheet" href="/styles/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexPrep - Home</title>
+  <link rel="stylesheet" href="styles/style.css">
 </head>
 <body>
 
@@ -13,37 +14,121 @@
     <h2>NexPrep</h2>
     <div class="nav">
       <p class="active">Home</p>
-      <p onclick="window.location.href='/dashboard.html'">Dashboard</p>
-      <p onclick="window.location.href='/test.html'">Test</p>
-      <p onclick="window.location.href='/history.html'">History</p>
-      <p onclick="window.location.href='/profile.html'">Profile</p>
+      <p onclick="window.location.href='dashboard.html'">Dashboard</p>
+      <p onclick="window.location.href='test.html'">Test</p>
+      <p onclick="window.location.href='history.html'">History</p>
+      <p onclick="window.location.href='profile.html'">Profile</p>
       <p onclick="logout()">Logout</p>
     </div>
   </div>
 
-  <div class="content">
-    <h1 id="welcome-msg">Welcome back</h1>
-    
-    <div class="card panel-card" id="continue-learning-section" style="display: none;">
-      <h3 class="card-title">Continue Learning</h3>
-      <p id="continue-text" class="card-text">Loading your progress...</p>
-      <button id="resume-btn" class="btn-primary" style="display: none;">Resume Learning</button>
-    </div>
+  <div class="content home-content">
+    <section class="home-hero">
+      <div class="hero-copy">
+        <span class="eyebrow">NexPrep LMS</span>
+        <h1 id="welcome-msg">Welcome back</h1>
+        <p>Stay consistent, revise smartly, and keep building the chapter mastery needed for JEE.</p>
+      </div>
+      <div class="hero-focus">
+        <span>Today's focus</span>
+        <strong id="hero-focus-text">Build momentum with one chapter or test.</strong>
+      </div>
+    </section>
 
-    <p>Select a subject to continue learning</p>
-    <div class="subjects">
-      <a href="/physics.html" class="card">Physics</a>
-      <a href="/chemistry.html" class="card">Chemistry</a>
-      <a href="/maths.html" class="card">Mathematics</a>
-    </div>
+    <section class="quick-stats" aria-label="Quick stats">
+      <div class="stat-card">
+        <span>Chapters completed</span>
+        <strong id="home-chapters-completed">0</strong>
+      </div>
+      <div class="stat-card">
+        <span>Tests attempted</span>
+        <strong id="home-tests-attempted">0</strong>
+      </div>
+      <div class="stat-card">
+        <span>Current streak</span>
+        <strong id="home-current-streak">0 days</strong>
+      </div>
+      <div class="stat-card">
+        <span>Overall progress</span>
+        <strong id="home-progress-percent">0%</strong>
+      </div>
+    </section>
+
+    <section class="dashboard-grid">
+      <div class="card panel-card continue-card" id="continue-learning-section" style="display: none;">
+        <div>
+          <span class="eyebrow">Continue Learning</span>
+          <h3 class="card-title">Pick up where you left off</h3>
+          <p id="continue-text" class="card-text">Loading your progress...</p>
+        </div>
+        <button id="resume-btn" class="btn-primary" style="display: none;">Resume Learning</button>
+      </div>
+
+      <div class="card panel-card activity-card">
+        <span class="eyebrow">Recent Activity</span>
+        <h3 class="card-title">Your latest work</h3>
+        <div id="recent-activity-list" class="activity-list">
+          <p class="card-text">Loading recent activity...</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">Subjects</span>
+          <h2>Subject Overview</h2>
+        </div>
+        <p>Select a subject to continue learning</p>
+      </div>
+
+      <div class="subjects subject-overview">
+        <a href="physics.html" class="card subject-card" data-subject-card="physics">
+          <div>
+            <span class="subject-kicker">Physics</span>
+            <h3>Concepts and mechanics</h3>
+          </div>
+          <div class="subject-progress">
+            <div class="progress-line"><span id="physics-progress-bar"></span></div>
+            <span id="physics-progress-text">0% progress</span>
+          </div>
+          <div class="card-sub" id="physics-chapters-text">0/4 chapters completed</div>
+          <span class="continue-link">Continue</span>
+        </a>
+        <a href="chemistry.html" class="card subject-card" data-subject-card="chemistry">
+          <div>
+            <span class="subject-kicker">Chemistry</span>
+            <h3>Reactions and structure</h3>
+          </div>
+          <div class="subject-progress">
+            <div class="progress-line"><span id="chemistry-progress-bar"></span></div>
+            <span id="chemistry-progress-text">0% progress</span>
+          </div>
+          <div class="card-sub" id="chemistry-chapters-text">0/4 chapters completed</div>
+          <span class="continue-link">Continue</span>
+        </a>
+        <a href="maths.html" class="card subject-card" data-subject-card="maths">
+          <div>
+            <span class="subject-kicker">Mathematics</span>
+            <h3>Patterns and problem solving</h3>
+          </div>
+          <div class="subject-progress">
+            <div class="progress-line"><span id="maths-progress-bar"></span></div>
+            <span id="maths-progress-text">0% progress</span>
+          </div>
+          <div class="card-sub" id="maths-chapters-text">0/4 chapters completed</div>
+          <span class="continue-link">Continue</span>
+        </a>
+      </div>
+    </section>
   </div>
 
 </div>
 
-<script src="/scripts/auth.js"></script>
-<script src="/scripts/authGuard.js"></script>
-<script src="/scripts/config.js"></script>
-<script src="/scripts/chapterNames.js"></script>
-<script src="/scripts/home.js"></script>
+<script src="scripts/auth.js"></script>
+<script src="scripts/authGuard.js"></script>
+<script src="scripts/config.js"></script>
+<script src="scripts/chapterNames.js"></script>
+<script src="scripts/home.js"></script>
 </body>
 </html>

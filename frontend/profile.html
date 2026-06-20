@@ -6,8 +6,8 @@
     <title>NexPrep - Profile</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/styles/style.css">
-    <link rel="stylesheet" href="/styles/profile.css">
+    <link rel="stylesheet" href="styles/style.css">
+    <link rel="stylesheet" href="styles/profile.css">
 </head>
 <body>
 
@@ -16,17 +16,17 @@
     <div class="sidebar">
         <h2>NexPrep</h2>
         <div class="nav">
-            <p onclick="window.location.href='/home.html'">Home</p>
-            <p onclick="window.location.href='/dashboard.html'">Dashboard</p>
-            <p onclick="window.location.href='/test.html'">Test</p>
-            <p onclick="window.location.href='/history.html'">History</p>
+            <p onclick="window.location.href='home.html'">Home</p>
+            <p onclick="window.location.href='dashboard.html'">Dashboard</p>
+            <p onclick="window.location.href='test.html'">Test</p>
+            <p onclick="window.location.href='history.html'">History</p>
             <p class="active">Profile</p>
             <p onclick="logout()">Logout</p>
         </div>
     </div>
 
     <div class="content">
-        <button class="back-btn" onclick="window.location.href='/home.html'">← Back to Home</button>
+        <button class="back-btn" onclick="window.location.href='home.html'"><span class="back-icon" aria-hidden="true"></span><span>Back to Home</span></button>
         <h1>Your Profile</h1>
         <p>Manage your account details</p>
         <p id="profile-message" class="page-message">Loading profile...</p>
@@ -37,10 +37,11 @@
                 <span id="avatar-initials">?</span>
             </div>
 
-            <h2 id="profile-username" class="profile-name">Loading...</h2>
-            <p id="profile-email" class="profile-email">Loading...</p>
-
-            <span class="demo-badge">JEE Aspirant</span>
+            <div class="profile-identity">
+                <h2 id="profile-username" class="profile-name">Loading...</h2>
+                <p id="profile-email" class="profile-email">Loading...</p>
+                <span class="demo-badge">JEE Aspirant</span>
+            </div>
 
             <div class="profile-stats">
                 <div class="stat-box">
@@ -70,9 +71,9 @@
 
 </div>
 
-<script src="/scripts/auth.js"></script>
-<script src="/scripts/authGuard.js"></script>
-<script src="/scripts/config.js"></script>
-<script src="/scripts/profile.js"></script>
+<script src="scripts/auth.js"></script>
+<script src="scripts/authGuard.js"></script>
+<script src="scripts/config.js"></script>
+<script src="scripts/profile.js"></script>
 </body>
 </html>

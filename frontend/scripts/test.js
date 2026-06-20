@@ -227,7 +227,7 @@ function render() {
 
 function screenMain() {
   return `
-    <button class="back-btn" onclick="window.location.href='/home.html'">← Back to Home</button>
+    <button class="back-btn" onclick="window.location.href='home.html'"><span class="back-icon" aria-hidden="true"></span><span>Back to Home</span></button>
     <h1>Tests</h1>
     <p>Choose how you want to practice</p>
     <div class="subjects">
@@ -252,7 +252,7 @@ function screenMain() {
 
 function screenSubject() {
   return `
-    <button class="back-btn" onclick="back()">← Back</button>
+    <button class="back-btn" onclick="back()"><span class="back-icon" aria-hidden="true"></span><span>Back</span></button>
     <h1>Chapter-wise</h1>
     <p>Select a subject</p>
     <div class="subjects">
@@ -287,7 +287,7 @@ function screenChapters() {
   `).join('');
 
   return `
-    <button class="back-btn" onclick="back()">← Back</button>
+    <button class="back-btn" onclick="back()"><span class="back-icon" aria-hidden="true"></span><span>Back</span></button>
     <h1>${label}</h1>
     <p>Select a chapter</p>
     <div class="subjects">${cards}</div>
@@ -297,7 +297,7 @@ function screenChapters() {
 function screenMode() {
   const label = state.type === 'mains' ? 'JEE Mains' : 'JEE Advanced';
   return `
-    <button class="back-btn" onclick="back()">← Back</button>
+    <button class="back-btn" onclick="back()"><span class="back-icon" aria-hidden="true"></span><span>Back</span></button>
     <h1>${label}</h1>
     <p>What do you want to access?</p>
     <div class="subjects">
@@ -326,7 +326,7 @@ function screenTests() {
   `).join('');
 
   return `
-    <button class="back-btn" onclick="back()">← Back</button>
+    <button class="back-btn" onclick="back()"><span class="back-icon" aria-hidden="true"></span><span>Back</span></button>
     <h1>Mock Tests</h1>
     <p>Select a test to begin</p>
     <div class="subjects">${cards}</div>
@@ -344,7 +344,7 @@ function screenPDFs() {
   `).join('');
 
   return `
-    <button class="back-btn" onclick="back()">← Back</button>
+    <button class="back-btn" onclick="back()"><span class="back-icon" aria-hidden="true"></span><span>Back</span></button>
     <h1>PYQ Papers</h1>
     <p>Download and practice</p>
     <div class="subjects">${cards}</div>
@@ -376,7 +376,7 @@ function screenTest() {
       </div>
       <div class="${timerClass}" id="timer-display">${mins}:${secs}</div>
     </div>
-    <button class="back-btn" onclick="exitTest()">Exit Test</button>
+    <button class="back-btn" onclick="exitTest()"><span class="back-icon" aria-hidden="true"></span><span>Exit Test</span></button>
     <div class="progress-bar-wrap">
       <div class="progress-bar-fill" style="width: ${(qNum / total) * 100}%"></div>
     </div>

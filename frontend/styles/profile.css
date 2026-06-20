@@ -307,3 +307,132 @@
   border-color: rgba(239,68,68,0.4);
   color: #f87171;
 }
+
+/* Responsive profile layout refresh */
+.profile-card {
+  max-width: 980px;
+  min-height: 280px;
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 120px minmax(220px, 1fr) minmax(300px, 1.2fr);
+  grid-template-areas:
+    "avatar identity stats"
+    "avatar tags stats"
+    "avatar action stats";
+  align-items: center;
+  gap: 18px 24px;
+  padding: clamp(24px, 4vw, 38px);
+  border-radius: 8px;
+}
+
+.profile-card::before,
+.profile-card::after {
+  display: none;
+}
+
+.avatar-circle {
+  grid-area: avatar;
+  width: 104px;
+  height: 104px;
+}
+
+.profile-name {
+  margin: 0;
+  font-size: clamp(1.8rem, 2.8vw, 2.45rem);
+}
+
+.profile-email {
+  margin: 4px 0 12px;
+}
+
+.demo-badge {
+  width: fit-content;
+}
+
+.profile-identity {
+  grid-area: identity;
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+}
+
+.subject-tags {
+  grid-area: tags;
+  justify-content: flex-start;
+}
+
+.profile-stats {
+  grid-area: stats;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stat-box {
+  min-height: 128px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.stat-box .stat-num {
+  font-size: clamp(1.55rem, 2.4vw, 2.1rem);
+}
+
+.btn-logout {
+  grid-area: action;
+  width: fit-content;
+  min-width: 160px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+@media (max-width: 1100px) {
+  .profile-card {
+    grid-template-columns: 108px minmax(0, 1fr);
+    grid-template-areas:
+      "avatar identity"
+      "avatar tags"
+      "stats stats"
+      "action action";
+  }
+
+  .profile-stats {
+    margin-top: 8px;
+  }
+}
+
+@media (max-width: 620px) {
+  .profile-card {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "avatar"
+      "identity"
+      "tags"
+      "stats"
+      "action";
+    justify-items: center;
+    text-align: center;
+  }
+
+  .profile-email {
+    margin-top: 4px;
+  }
+
+  .profile-identity {
+    justify-items: center;
+  }
+
+  .subject-tags {
+    justify-content: center;
+  }
+
+  .profile-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .btn-logout {
+    width: 100%;
+  }
+}
