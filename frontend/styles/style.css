@@ -192,6 +192,33 @@ body {
   padding: 28px 26px;
 }
 
+.chapter-progress-card {
+  min-height: auto;
+}
+
+.chapter-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.chapter-progress-header .card-text {
+  margin-bottom: 0;
+}
+
+.progress-card {
+  min-height: auto;
+}
+
+.progress-percentage {
+  font-family: var(--font-head, Arial, sans-serif);
+  font-size: clamp(2rem, 3vw, 2.6rem);
+  font-weight: 700;
+  color: white;
+  line-height: 1;
+}
+
 .back-btn {
   background: rgba(59,130,246,0.08);
   border: 1px solid rgba(59,130,246,0.2);
@@ -320,6 +347,16 @@ body {
 
   .card {
     padding: 22px;
+  }
+
+  .chapter-progress-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .chapter-progress-header .btn-primary,
+  .chapter-progress-header .btn-secondary {
+    width: 100%;
   }
 }
 

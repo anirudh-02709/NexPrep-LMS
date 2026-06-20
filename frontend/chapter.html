@@ -28,6 +28,15 @@
   <div class="content">
     <button class="back-btn" onclick="window.location.href='/home.html'">← Back to Home</button>
     <h1 id="chapter-title">Chapter</h1>
+    <div class="card panel-card chapter-progress-card">
+      <div class="chapter-progress-header">
+        <div>
+          <h3 class="card-title">Chapter Completion</h3>
+          <p id="chapter-completion-state" class="card-text">Loading completion state...</p>
+        </div>
+        <button id="chapter-completion-btn" class="btn-primary" type="button">Mark as Completed</button>
+      </div>
+    </div>
     <div id="videos" class="videos"></div>
   </div>
 

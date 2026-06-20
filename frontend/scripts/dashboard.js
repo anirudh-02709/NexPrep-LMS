@@ -4,6 +4,7 @@ window.onload = async function () {
   const averageScoreEl = document.getElementById('average-score');
   const latestTestEl = document.getElementById('latest-test');
   const subjectStatsEl = document.getElementById('subject-stats');
+  const progressStatsEl = document.getElementById('progress-stats');
   const statusEl = document.getElementById('dashboard-status');
 
   // AI Insights Elements
@@ -16,65 +17,112 @@ window.onload = async function () {
   statusEl.textContent = 'Loading dashboard...';
   statusEl.classList.remove('error', 'success');
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/tests/dashboard`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+  const loadTestDashboard = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/tests/dashboard`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      if (response.status === 401) {
-        handleUnauthorized();
+      if (!response.ok) {
+        if (response.status === 401) {
+          handleUnauthorized();
+          return;
+        }
+
+        statusEl.textContent = data.message || 'Unable to load dashboard right now.';
+        statusEl.classList.add('error');
         return;
       }
 
-      statusEl.textContent = data.message || 'Unable to load dashboard right now.';
+      const dashboard = data.dashboard;
+
+      totalTestsEl.textContent = dashboard.totalTests;
+      averageScoreEl.textContent = `${dashboard.averageScorePercentage}%`;
+      statusEl.textContent = '';
+
+      if (dashboard.latestTest) {
+        latestTestEl.textContent = `${getSubjectTitle(dashboard.latestTest.subject)} - ${getChapterTitle(dashboard.latestTest.chapter)}`;
+      } else {
+        latestTestEl.textContent = 'No tests yet';
+      }
+
+      if (dashboard.insights) {
+        weakestSubjectEl.textContent = dashboard.insights.weakestSubject;
+        strongestSubjectEl.textContent = dashboard.insights.strongestSubject;
+        performanceTrendEl.textContent = dashboard.insights.performanceTrend;
+        recommendationTextEl.textContent = dashboard.insights.recommendation;
+        consistencyInsightEl.textContent = dashboard.insights.consistencyInsight;
+      }
+
+      const subjects = Object.keys(dashboard.subjectWiseTestCounts);
+
+      if (!subjects.length) {
+        statusEl.textContent = 'No dashboard data yet. Complete a test to see progress here.';
+        subjectStatsEl.innerHTML = '<div class="card">No subject data yet.</div>';
+        return;
+      }
+
+      subjectStatsEl.innerHTML = subjects.map((subject) => {
+        return `
+          <div class="card">
+            <div>${getSubjectTitle(subject)}</div>
+            <div class="card-sub">${dashboard.subjectWiseTestCounts[subject]} tests</div>
+          </div>
+        `;
+      }).join('');
+    } catch (error) {
+      statusEl.textContent = 'Unable to load dashboard. Please check that the backend is running.';
       statusEl.classList.add('error');
+    }
+  };
+
+  const loadChapterProgress = async () => {
+    if (!progressStatsEl) {
       return;
     }
 
-    const dashboard = data.dashboard;
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/progress/stats`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    totalTestsEl.textContent = dashboard.totalTests;
-    averageScoreEl.textContent = `${dashboard.averageScorePercentage}%`;
-    statusEl.textContent = '';
+      const data = await response.json();
 
-    if (dashboard.latestTest) {
-      latestTestEl.textContent = `${getSubjectTitle(dashboard.latestTest.subject)} - ${getChapterTitle(dashboard.latestTest.chapter)}`;
-    } else {
-      latestTestEl.textContent = 'No tests yet';
+      if (!response.ok) {
+        if (response.status === 401) {
+          handleUnauthorized();
+          return;
+        }
+
+        progressStatsEl.innerHTML = '<div class="card">Unable to load chapter progress.</div>';
+        return;
+      }
+
+      const orderedSubjects = ['physics', 'chemistry', 'maths'];
+
+      progressStatsEl.innerHTML = orderedSubjects.map((subject) => {
+        const subjectStats = data.stats[subject];
+        return `
+          <div class="card progress-card">
+            <div class="card-title">${getSubjectTitle(subject)} Progress</div>
+            <div class="progress-percentage">${subjectStats.completionPercentage}%</div>
+            <div class="card-sub">${subjectStats.completedChapters}/${subjectStats.totalChapters} chapters completed</div>
+          </div>
+        `;
+      }).join('');
+    } catch (error) {
+      progressStatsEl.innerHTML = '<div class="card">Unable to load chapter progress.</div>';
     }
+  };
 
-    if (dashboard.insights) {
-      weakestSubjectEl.textContent = dashboard.insights.weakestSubject;
-      strongestSubjectEl.textContent = dashboard.insights.strongestSubject;
-      performanceTrendEl.textContent = dashboard.insights.performanceTrend;
-      recommendationTextEl.textContent = dashboard.insights.recommendation;
-      consistencyInsightEl.textContent = dashboard.insights.consistencyInsight;
-    }
-
-    const subjects = Object.keys(dashboard.subjectWiseTestCounts);
-
-    if (!subjects.length) {
-      statusEl.textContent = 'No dashboard data yet. Complete a test to see progress here.';
-      subjectStatsEl.innerHTML = '<div class="card">No subject data yet.</div>';
-      return;
-    }
-
-    subjectStatsEl.innerHTML = subjects.map((subject) => {
-      return `
-        <div class="card">
-          <div>${getSubjectTitle(subject)}</div>
-          <div class="card-sub">${dashboard.subjectWiseTestCounts[subject]} tests</div>
-        </div>
-      `;
-    }).join('');
-  } catch (error) {
-    statusEl.textContent = 'Unable to load dashboard. Please check that the backend is running.';
-    statusEl.classList.add('error');
-  }
+  await loadTestDashboard();
+  await loadChapterProgress();
 };
