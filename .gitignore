@@ -13,9 +13,11 @@ serviceAccountKey.json
 
 # Logs
 *.log
+logs/
 
-# OS / Editor junk
+# OS / Editor
 .DS_Store
+Thumbs.db
 .vscode/
 .idea/
 *.suo

@@ -12,16 +12,42 @@ const createToken = (userId) => {
 
 const register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, confirmPassword } = req.body;
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    const trimmedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const trimmedPassword = typeof password === 'string' ? password : '';
+    const trimmedConfirmPassword = typeof confirmPassword === 'string' ? confirmPassword : '';
 
-    if (!name || !email || !password) {
+    if (!trimmedName || !trimmedEmail || !trimmedPassword || !trimmedConfirmPassword) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide name, email, and password.',
+        message: 'Please provide full name, email, password, and confirm password.',
       });
     }
 
-    const existingUser = await User.findOne({ email });
+    if (trimmedPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters long.',
+      });
+    }
+
+    if (trimmedPassword !== trimmedConfirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match.',
+      });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address.',
+      });
+    }
+
+    const existingUser = await User.findOne({ email: trimmedEmail });
 
     if (existingUser) {
       return res.status(400).json({
@@ -30,13 +56,14 @@ const register = async (req, res) => {
       });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const salt = await bcrypt.genSalt(12);
+    const hashedPassword = await bcrypt.hash(trimmedPassword, salt);
 
     const user = await User.create({
-      name,
-      email,
+      name: trimmedName,
+      email: trimmedEmail,
       password: hashedPassword,
+      authProvider: 'local',
     });
 
     return res.status(201).json({
@@ -49,6 +76,7 @@ const register = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error('[Auth] Registration failed:', error);
     return res.status(500).json({
       success: false,
       message: 'Server error during registration.',
