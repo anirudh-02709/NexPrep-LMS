@@ -10,22 +10,14 @@ const firebasePrivateKey = firebasePrivateKeyRaw
   ? firebasePrivateKeyRaw.replace(/\\n/g, '\n').trim()
   : '';
 
-const hasFirebaseConfig =
+const hasFirebaseConfig = Boolean(
   firebaseProjectId &&
   firebaseProjectId !== 'your_firebase_project_id' &&
   firebaseClientEmail &&
   firebaseClientEmail !== 'your_firebase_client_email' &&
   firebasePrivateKey &&
-  firebasePrivateKey !== '-----BEGIN PRIVATE KEY-----\nyour_private_key_here\n-----END PRIVATE KEY-----';
-
-console.log('[Firebase Admin] env values exist:', {
-  FIREBASE_PROJECT_ID: Boolean(firebaseProjectId),
-  FIREBASE_CLIENT_EMAIL: Boolean(firebaseClientEmail),
-  FIREBASE_PRIVATE_KEY: Boolean(firebasePrivateKey),
-  privateKeyStartsCorrectly: firebasePrivateKey.startsWith('-----BEGIN PRIVATE KEY-----'),
-  privateKeyEndsCorrectly: firebasePrivateKey.endsWith('-----END PRIVATE KEY-----'),
-});
-console.log('[Firebase Admin] admin.apps.length before init:', admin.apps.length);
+  firebasePrivateKey !== '-----BEGIN PRIVATE KEY-----\nyour_private_key_here\n-----END PRIVATE KEY-----'
+);
 
 if (!admin.apps.length && hasFirebaseConfig) {
   try {
@@ -36,18 +28,9 @@ if (!admin.apps.length && hasFirebaseConfig) {
         privateKey: firebasePrivateKey,
       }),
     });
-
-    console.log('[Firebase Admin] Initialized successfully.');
-    console.log('[Firebase Admin] admin.apps.length after init:', admin.apps.length);
   } catch (error) {
-    console.error('[Firebase Admin] Initialization failed.');
-    console.error(error);
+    console.error('[Firebase Admin] Initialization failed:', error.message);
   }
-} else if (!hasFirebaseConfig) {
-  console.error('[Firebase Admin] Initialization skipped because config is incomplete.');
-  console.error('[Firebase Admin] hasFirebaseConfig:', hasFirebaseConfig);
-} else {
-  console.log('[Firebase Admin] Already initialized. admin.apps.length:', admin.apps.length);
 }
 
 module.exports = {

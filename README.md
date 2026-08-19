@@ -13,14 +13,44 @@ NexPrep is a full-stack JEE Learning Management System (LMS) designed for chapte
 
 ---
 
+## Architecture Overview
+
+```
+ ┌────────────────────────────────────────────────────────┐
+ │                   Frontend Client                      │
+ │   - Static HTML5, Vanilla CSS3, ES6 JavaScript         │
+ │   - Lightweight apiFetch with Bearer token injection   │
+ │   - Single-Source Taxonomy (chapterNames.js)           │
+ └──────────────────────────┬─────────────────────────────┘
+                            │ REST API (JSON / HTTP)
+                            ▼
+ ┌────────────────────────────────────────────────────────┐
+ │                 Express.js Backend                     │
+ │   - CORS Whitelist & Body Parser Limits                │
+ │   - JWT Protect Middleware (User Existence Check)      │
+ │   - Authoritative Question Bank & Scoring Service      │
+ │   - Deterministic Performance Insights Engine          │
+ └─────────────┬───────────────────────────┬──────────────┘
+               │                           │
+               ▼                           ▼
+ ┌───────────────────────────┐ ┌───────────────────────────┐
+ │       MongoDB Atlas       │ │   Firebase Admin SDK      │
+ │  - users                  │ │  - Google ID Token        │
+ │  - progresses             │ │    Verification           │
+ │  - testresults (indexed)  │ │                           │
+ └───────────────────────────┘ └───────────────────────────┘
+```
+
+---
+
 ## Core Implemented Features
 
 1. **Authentication & Security**:
    * Local registration and login with salt-hashed passwords (`bcryptjs`, 12 rounds).
    * Google OAuth login via Firebase ID token verification.
-   * Canonical email normalization across local and OAuth registrations.
-   * JWT-protected endpoints verifying database user existence.
-   * Input length validation, schema-level boundary checks, and stored-XSS protection.
+   * Canonical email normalization (`trim().toLowerCase()`) across local and OAuth accounts with seamless provider merging.
+   * JWT-protected endpoints verifying live database user existence.
+   * Input validation, taxonomy whitelist checks, and stored-XSS protection.
 
 2. **Single Authoritative Taxonomy**:
    * Centralized subject/chapter taxonomy in `backend/data/taxonomy.js`.
@@ -32,23 +62,51 @@ NexPrep is a full-stack JEE Learning Management System (LMS) designed for chapte
 
 3. **Server-Authoritative Test Engine**:
    * Authoritative backend question bank containing 120 curated questions (10 per chapter).
-   * Clients receive sanitized question prompts and option lists (correct answer keys never exposed).
-   * Timed tests (120 seconds) with interactive question navigation.
-   * Submissions graded entirely on the server; tampering with client-supplied scores is impossible.
+   * Clients receive sanitized question prompts and options (correct answers are never transmitted).
+   * Timed tests (120 seconds) with question navigation and client-side selection state.
+   * Submissions graded entirely on the server; client-supplied scores cannot tamper with results.
 
 4. **Progress Tracking**:
-   * Track recently visited chapters and continue learning from the home page.
+   * Tracks recently visited chapters for the "Continue Learning" dashboard card.
    * Toggle chapter completion state ("Mark as Completed" / "Mark as Incomplete").
-   * Subject completion percentage and completed chapter statistics.
+   * Subject completion percentage and completed chapter counters.
 
 5. **Performance Insights & Analytics**:
    * Deterministic, rule-based analytics evaluating test scores across subjects.
-   * Identifies focus area (weakest subject), strongest subject, performance trend, and study recommendations.
+   * Identifies focus area (weakest subject), strongest subject, performance trend, and recommendations.
    * Daily activity streak calculation.
 
 6. **Paginated Test History**:
    * Fast, indexed queries (`{ user: 1, createdAt: -1 }`) supporting `page` and `limit` query parameters.
-   * Memory-efficient `.lean()` database queries.
+   * Memory-efficient `.lean()` database projections.
+
+---
+
+## Database Collections
+
+* **`users`**: Stores user accounts (`name`, `email` [normalized/unique], `password` [bcrypt hash], `firebaseUid`, `authProvider`).
+* **`progresses`**: Tracks chapter completion and visits (`user`, `subject` [enum], `chapter` [enum], `completed`, `lastVisited`).
+* **`testresults`**: Stores evaluated test attempts (`user`, `subject` [enum], `chapter` [enum], `score`, `totalQuestions`, `createdAt` [compound index with `user`]).
+
+---
+
+## Key API Endpoints
+
+| Method | Endpoint | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/auth/register` | Public | Register new user account with hashed password |
+| `POST` | `/api/auth/login` | Public | Authenticate user and receive signed JWT |
+| `POST` | `/api/auth/google` | Public | Authenticate with Firebase Google ID token |
+| `GET` | `/api/auth/me` | Bearer | Get authenticated user profile data |
+| `POST` | `/api/progress/update` | Bearer | Update chapter visit telemetry |
+| `POST` | `/api/progress/complete` | Bearer | Mark chapter as completed |
+| `POST` | `/api/progress/incomplete` | Bearer | Mark chapter as incomplete |
+| `GET` | `/api/progress/stats` | Bearer | Get subject completion percentages |
+| `GET` | `/api/progress/continue` | Bearer | Get last visited chapter |
+| `GET` | `/api/tests/questions` | Bearer | Get sanitized test questions for a chapter |
+| `POST` | `/api/tests/result` | Bearer | Submit answers for server evaluation & persistence |
+| `GET` | `/api/tests/history` | Bearer | Get paginated test history (`?page=1&limit=10`) |
+| `GET` | `/api/tests/dashboard` | Bearer | Get test counts, average scores & performance insights |
 
 ---
 
@@ -62,9 +120,9 @@ NexPrep is a full-stack JEE Learning Management System (LMS) designed for chapte
 │   ├── middleware/         # JWT authentication and error middlewares
 │   ├── models/             # User, Progress, and TestResult Mongoose schemas
 │   ├── routes/             # Express API routes
-│   ├── scripts/            # Taxonomy builder script
+│   ├── scripts/            # Taxonomy builder script (buildTaxonomy.js)
 │   ├── services/           # Server-authoritative test scoring service
-│   ├── tests/              # Unit and integration test suites
+│   ├── tests/              # 6 automated test suites (node:test)
 │   ├── package.json
 │   └── server.js           # Express app entry point
 └── frontend/
@@ -86,15 +144,21 @@ npm install
 copy .env.example .env
 ```
 
-Fill in the required values in `backend/.env`:
-* `PORT=5000`
-* `MONGO_URI=your_mongodb_connection_string`
-* `JWT_SECRET=your_jwt_secret_key`
-* `FIREBASE_PROJECT_ID=your_project_id` (Optional for local auth)
-* `FIREBASE_CLIENT_EMAIL=your_client_email` (Optional for local auth)
-* `FIREBASE_PRIVATE_KEY=your_private_key` (Optional for local auth)
+Configure `backend/.env`:
+```text
+PORT=5000
+NODE_ENV=development
+MONGO_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret_key
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:5500
 
-Build taxonomy and start dev server:
+# Optional Google OAuth:
+FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_CLIENT_EMAIL=your_client_email
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+```
+
+Compile taxonomy and run dev server:
 ```bash
 npm run build:taxonomy
 npm run dev
@@ -107,20 +171,15 @@ npm test
 
 ### 2. Frontend Setup
 
-Open the frontend files in your browser directly or serve them with a static HTTP server:
+Serve frontend static files:
 ```bash
 cd frontend
-# e.g., using Python static server or opening index.html directly
 python -m http.server 3000
 ```
-
-Frontend configuration files:
-* `frontend/scripts/config.js`: Points to `http://localhost:5000` when on localhost.
-* `frontend/scripts/firebaseConfig.js`: Optional Google Auth client credentials.
 
 ---
 
 ## Deployment Architecture
 
-* **Frontend**: Static web assets deployable to any static host (Netlify, Vercel, GitHub Pages). Configured via `netlify.toml`.
-* **Backend**: Node.js/Express service deployable to Render, Railway, or Heroku, connecting to a MongoDB Atlas cluster.
+* **Frontend**: Static web assets deployable to any static host (Netlify, Vercel, GitHub Pages) with security headers configured via `netlify.toml`.
+* **Backend**: Node.js/Express service deployable to Render, Railway, or Heroku, connecting to MongoDB Atlas with CORS whitelist configured via `ALLOWED_ORIGINS`.
