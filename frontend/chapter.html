@@ -29,6 +29,7 @@
   <div class="content">
     <button class="back-btn" onclick="window.location.href='home.html'"><span class="back-icon" aria-hidden="true"></span><span>Back to Home</span></button>
     <h1 id="chapter-title">Chapter</h1>
+    
     <div class="card panel-card chapter-progress-card">
       <div class="chapter-progress-header">
         <div>
@@ -38,7 +39,12 @@
         <button id="chapter-completion-btn" class="btn-primary" type="button">Mark as Completed</button>
       </div>
     </div>
-    <div id="videos" class="videos"></div>
+
+    <div class="card panel-card" style="margin-top: 16px;">
+      <h3 class="card-title">Practice Test</h3>
+      <p class="card-text">Test your mastery of this chapter with our 10-question timed practice test.</p>
+      <button class="btn-primary" type="button" style="margin-top: 12px;" onclick="window.location.href='test.html'">Take Practice Test</button>
+    </div>
   </div>
 
 </div>

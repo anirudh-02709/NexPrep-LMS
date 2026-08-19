@@ -9,31 +9,11 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-// ─── Mock/PDF Data ───────────────────────────────────────
-const data = {
-  mains: {
-    tests: ['Mock Test 1', 'Mock Test 2', 'Mock Test 3'],
-    pdfs: [
-      { name: 'JEE Mains PYQ 2024', url: '#' },
-      { name: 'JEE Mains PYQ 2023', url: '#' },
-      { name: 'JEE Mains PYQ 2022', url: '#' }
-    ]
-  },
-  advanced: {
-    tests: ['Mock Test 1', 'Mock Test 2'],
-    pdfs: [
-      { name: 'JEE Advanced PYQ 2024', url: '#' },
-      { name: 'JEE Advanced PYQ 2023', url: '#' },
-      { name: 'JEE Advanced PYQ 2022', url: '#' }
-    ]
-  }
-};
-
 // ─── State ───────────────────────────────────────────────
 let state = {
   screen: 'main',
-  type: null,
   subject: null,
+  chapterId: null,
   chapter: null,
   questions: [],
   answers: [],
@@ -57,11 +37,7 @@ function render() {
   if (!container) return;
 
   if (state.screen === 'main')     container.innerHTML = screenMain();
-  if (state.screen === 'subject')  container.innerHTML = screenSubject();
   if (state.screen === 'chapters') container.innerHTML = screenChapters();
-  if (state.screen === 'mode')     container.innerHTML = screenMode();
-  if (state.screen === 'tests')    container.innerHTML = screenTests();
-  if (state.screen === 'pdfs')     container.innerHTML = screenPDFs();
   if (state.screen === 'test')     container.innerHTML = screenTest();
   if (state.screen === 'result')   container.innerHTML = screenResult();
 }
@@ -71,48 +47,23 @@ function render() {
 function screenMain() {
   return `
     <button class="back-btn" onclick="window.location.href='home.html'"><span class="back-icon" aria-hidden="true"></span><span>Back to Home</span></button>
-    <h1>Tests</h1>
-    <p>Choose how you want to practice</p>
-    <div class="subjects">
-      <div class="card" onclick="go('chapterwise')">
-        <div>📖</div>
-        <div>Chapter-wise</div>
-        <div class="card-sub">Practice by topic</div>
-      </div>
-      <div class="card" onclick="go('mains')">
-        <div>📝</div>
-        <div>JEE Mains Mock</div>
-        <div class="card-sub">Full mocks & PYQs</div>
-      </div>
-      <div class="card" onclick="go('advanced')">
-        <div>🎯</div>
-        <div>JEE Advanced Mock</div>
-        <div class="card-sub">Full mocks & PYQs</div>
-      </div>
-    </div>
-  `;
-}
-
-function screenSubject() {
-  return `
-    <button class="back-btn" onclick="back()"><span class="back-icon" aria-hidden="true"></span><span>Back</span></button>
-    <h1>Chapter-wise</h1>
-    <p>Select a subject</p>
+    <h1>Practice Tests</h1>
+    <p>Select a subject to practice chapter-wise tests</p>
     <div class="subjects">
       <div class="card" onclick="goSubject('physics')">
         <div>⚡</div>
         <div>Physics</div>
-        <div class="card-sub">4 chapters</div>
+        <div class="card-sub">4 chapters · 40 Qs</div>
       </div>
       <div class="card" onclick="goSubject('chemistry')">
         <div>🧪</div>
         <div>Chemistry</div>
-        <div class="card-sub">4 chapters</div>
+        <div class="card-sub">4 chapters · 40 Qs</div>
       </div>
       <div class="card" onclick="goSubject('maths')">
         <div>📐</div>
         <div>Mathematics</div>
-        <div class="card-sub">4 chapters</div>
+        <div class="card-sub">4 chapters · 40 Qs</div>
       </div>
     </div>
   `;
@@ -125,71 +76,14 @@ function screenChapters() {
   const cards = chapters.map(ch => `
     <div class="card" onclick="startTest('${escapeHtml(state.subject)}', '${escapeHtml(ch.id)}')">
       <div>${escapeHtml(ch.name)}</div>
-      <div class="card-sub">10 Qs · 20 mins</div>
+      <div class="card-sub">10 Qs · 2 mins</div>
     </div>
   `).join('');
 
   return `
     <button class="back-btn" onclick="back()"><span class="back-icon" aria-hidden="true"></span><span>Back</span></button>
-    <h1>${label}</h1>
-    <p>Select a chapter</p>
-    <div class="subjects">${cards}</div>
-  `;
-}
-
-function screenMode() {
-  const label = state.type === 'mains' ? 'JEE Mains' : 'JEE Advanced';
-  return `
-    <button class="back-btn" onclick="back()"><span class="back-icon" aria-hidden="true"></span><span>Back</span></button>
-    <h1>${label}</h1>
-    <p>What do you want to access?</p>
-    <div class="subjects">
-      <div class="card" onclick="goMode('tests')">
-        <div>⏱️</div>
-        <div>Mock Tests</div>
-        <div class="card-sub">Timed full-length tests</div>
-      </div>
-      <div class="card" onclick="goMode('pdfs')">
-        <div>📄</div>
-        <div>PYQ PDFs</div>
-        <div class="card-sub">Download past papers</div>
-      </div>
-    </div>
-  `;
-}
-
-function screenTests() {
-  const tests = data[state.type].tests;
-  const cards = tests.map(t => `
-    <div class="card" onclick="alert('${escapeHtml(t)} coming soon!')">
-      <div>⏱️</div>
-      <div>${escapeHtml(t)}</div>
-      <div class="card-sub">3 hrs · 300 marks</div>
-    </div>
-  `).join('');
-
-  return `
-    <button class="back-btn" onclick="back()"><span class="back-icon" aria-hidden="true"></span><span>Back</span></button>
-    <h1>Mock Tests</h1>
-    <p>Select a test to begin</p>
-    <div class="subjects">${cards}</div>
-  `;
-}
-
-function screenPDFs() {
-  const pdfs = data[state.type].pdfs;
-  const cards = pdfs.map(p => `
-    <a href="${encodeURI(p.url)}" class="card pdf-card" download>
-      <div>📄</div>
-      <div>${escapeHtml(p.name)}</div>
-      <div class="card-sub">Click to download</div>
-    </a>
-  `).join('');
-
-  return `
-    <button class="back-btn" onclick="back()"><span class="back-icon" aria-hidden="true"></span><span>Back</span></button>
-    <h1>PYQ Papers</h1>
-    <p>Download and practice</p>
+    <h1>${label} Tests</h1>
+    <p>Select a chapter to begin</p>
     <div class="subjects">${cards}</div>
   `;
 }
@@ -301,7 +195,7 @@ function screenResult() {
       ${saveMessage}
       <div class="result-actions">
         <button class="card" onclick="retryTest()">🔁 Retry</button>
-        <button class="card" onclick="back(); back();">📚 All Chapters</button>
+        <button class="card" onclick="back()">📚 All Chapters</button>
         <button class="card" onclick="goHome()">🏠 Home</button>
       </div>
     </div>
@@ -330,30 +224,12 @@ async function startTest(subject, chapterId) {
   state.screen = 'test';
   render();
 
-  const token = getToken();
-  if (!token) {
-    handleUnauthorized();
-    return;
-  }
-
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/api/tests/questions?subject=${encodeURIComponent(subject)}&chapter=${encodeURIComponent(chapterId)}`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
+    const { ok, data } = await apiFetch(
+      `/api/tests/questions?subject=${encodeURIComponent(subject)}&chapter=${encodeURIComponent(chapterId)}`
     );
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        handleUnauthorized();
-        return;
-      }
+    if (!ok) {
       state.loading = false;
       state.loadingError = data.message || 'Unable to load test questions.';
       render();
@@ -436,39 +312,22 @@ function nextQuestion() {
 async function saveTestResult() {
   if (state.resultSaved) return;
 
-  const token = getToken();
-  if (!token) {
-    handleUnauthorized();
-    return;
-  }
-
   const chapterKey = state.chapterId || state.chapter;
 
   state.resultSaveMessage = 'Evaluating and saving result...';
   render();
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/tests/result`, {
+    const { ok, data } = await apiFetch('/api/tests/result', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
+      body: {
         subject: state.subject,
         chapter: chapterKey,
         answers: state.answers
-      })
+      }
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        handleUnauthorized();
-        return;
-      }
-
+    if (!ok) {
       state.submitting = false;
       state.resultSaveMessage = data.message || 'Result could not be saved.';
       render();
@@ -540,32 +399,16 @@ function exitTest() {
 
 // ─── Navigation ──────────────────────────────────────────
 
-function go(type) {
-  state.type = type;
-  state.screen = type === 'chapterwise' ? 'subject' : 'mode';
-  render();
-}
-
 function goSubject(subject) {
   state.subject = subject;
   state.screen = 'chapters';
   render();
 }
 
-function goMode(mode) {
-  state.mode = mode;
-  state.screen = mode;
-  render();
-}
-
 function back() {
   clearInterval(state.timer);
-  if (state.screen === 'subject')       state.screen = 'main';
-  else if (state.screen === 'chapters') state.screen = 'subject';
-  else if (state.screen === 'mode')     state.screen = 'main';
-  else if (state.screen === 'tests')    state.screen = 'mode';
-  else if (state.screen === 'pdfs')     state.screen = 'mode';
-  else if (state.screen === 'result')   state.screen = 'chapters';
+  if (state.screen === 'chapters') state.screen = 'main';
+  else if (state.screen === 'result') state.screen = 'chapters';
   render();
 }
 

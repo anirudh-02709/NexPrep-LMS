@@ -90,9 +90,6 @@ function calculateStreak(results) {
 }
 
 async function loadContinueLearning() {
-  const token = getToken();
-  if (!token) return;
-
   const sectionEl = document.getElementById('continue-learning-section');
   const textEl = document.getElementById('continue-text');
   const resumeBtn = document.getElementById('resume-btn');
@@ -100,20 +97,9 @@ async function loadContinueLearning() {
   sectionEl.style.display = 'block';
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/progress/continue`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const { ok, data } = await apiFetch('/api/progress/continue');
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        handleUnauthorized();
-        return;
-      }
+    if (!ok) {
       textEl.textContent = data.message || 'Unable to load progress right now.';
       return;
     }
@@ -140,23 +126,10 @@ async function loadContinueLearning() {
 }
 
 async function loadHomeStats() {
-  const token = getToken();
-  if (!token) return;
-
   try {
-    const response = await fetch(`${API_BASE_URL}/api/progress/stats`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const { ok, data } = await apiFetch('/api/progress/stats');
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        handleUnauthorized();
-      }
+    if (!ok) {
       return;
     }
 
@@ -165,7 +138,7 @@ async function loadHomeStats() {
     let total = 0;
 
     orderedSubjects.forEach((subject) => {
-      const stats = data.stats[subject];
+      const stats = data.stats && data.stats[subject];
       if (!stats) return;
 
       completed += Number(stats.completedChapters) || 0;
@@ -187,27 +160,14 @@ async function loadHomeStats() {
 }
 
 async function loadTestStats() {
-  const token = getToken();
-  if (!token) return;
-
   try {
-    const response = await fetch(`${API_BASE_URL}/api/tests/dashboard`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const { ok, data } = await apiFetch('/api/tests/dashboard');
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        handleUnauthorized();
-      }
+    if (!ok) {
       return;
     }
 
-    const dashboard = data.dashboard;
+    const dashboard = data.dashboard || {};
     setText('home-tests-attempted', dashboard.totalTests || 0);
 
     updateRecentActivity();
@@ -217,23 +177,10 @@ async function loadTestStats() {
 }
 
 async function loadRecentHistory() {
-  const token = getToken();
-  if (!token) return;
-
   try {
-    const response = await fetch(`${API_BASE_URL}/api/tests/history`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const { ok, data } = await apiFetch('/api/tests/history');
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        handleUnauthorized();
-      }
+    if (!ok) {
       return;
     }
 
@@ -251,8 +198,10 @@ async function loadRecentHistory() {
 }
 
 window.onload = function() {
-  loadContinueLearning();
-  loadHomeStats();
-  loadTestStats();
-  loadRecentHistory();
+  Promise.all([
+    loadContinueLearning(),
+    loadHomeStats(),
+    loadTestStats(),
+    loadRecentHistory(),
+  ]);
 };

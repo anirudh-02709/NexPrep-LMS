@@ -6,7 +6,6 @@ window.onload = function () {
 };
 
 async function loadHistory(page = 1) {
-  const token = getToken();
   const historyList = document.getElementById('history-list');
   const statusEl = document.getElementById('history-status');
 
@@ -14,21 +13,9 @@ async function loadHistory(page = 1) {
   statusEl.classList.remove('error', 'success');
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/tests/history?page=${page}&limit=${historyPageSize}`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const { ok, data } = await apiFetch(`/api/tests/history?page=${page}&limit=${historyPageSize}`);
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        handleUnauthorized();
-        return;
-      }
-
+    if (!ok) {
       statusEl.textContent = data.message || 'Unable to load test history right now.';
       statusEl.classList.add('error');
       return;

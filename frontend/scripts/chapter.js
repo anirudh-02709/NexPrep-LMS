@@ -3,10 +3,10 @@ const chapter = params.get("name");
 
 // Guard: If URL has no ?name= query parameter, show fallback state
 if (!chapter) {
-    document.getElementById("chapter-title").innerText = "Chapter not found";
-    document.getElementById("videos").innerText = "No chapter was specified. Please go back and select a chapter.";
-    // Stop the rest of the script from running
-    throw new Error("No chapter param in URL");
+  document.getElementById("chapter-title").textContent = "Chapter not found";
+  document.getElementById("videos").textContent = "No chapter was specified. Please go back and select a chapter.";
+  // Stop the rest of the script from running
+  throw new Error("No chapter param in URL");
 }
 
 const chapterTitleEl = document.getElementById("chapter-title");
@@ -16,7 +16,7 @@ const completionBtn = document.getElementById("chapter-completion-btn");
 let currentSubject = getChapterSubject(chapter);
 let currentCompletionState = false;
 
-chapterTitleEl.innerText = getChapterTitle(chapter);
+chapterTitleEl.textContent = getChapterTitle(chapter);
 
 function renderCompletionState() {
   if (!completionStateEl || !completionBtn) {
@@ -37,56 +37,36 @@ function renderCompletionState() {
 }
 
 async function updateLearningProgress() {
-  const token = getToken();
   const subject = currentSubject;
 
-  if (!token || !subject) {
+  if (!subject) {
     return;
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/progress/update`, {
+    await apiFetch('/api/progress/update', {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
+      body: {
         subject,
-        chapter
-      })
+        chapter,
+      },
     });
-
-    if (!response.ok) {
-      handleUnauthorized();
-    }
   } catch (error) {
-    handleUnauthorized();
+    // Non-blocking background telemetry
   }
 }
 
 async function loadCompletionState() {
-  const token = getToken();
-
-  if (!token || !currentSubject) {
+  if (!currentSubject) {
     return;
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/progress/status?subject=${encodeURIComponent(currentSubject)}&chapter=${encodeURIComponent(chapter)}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const { ok, data } = await apiFetch(
+      `/api/progress/status?subject=${encodeURIComponent(currentSubject)}&chapter=${encodeURIComponent(chapter)}`
+    );
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        handleUnauthorized();
-        return;
-      }
+    if (!ok) {
       completionStateEl.textContent = data.message || 'Unable to load completion state.';
       return;
     }
@@ -99,9 +79,7 @@ async function loadCompletionState() {
 }
 
 async function setCompletionState(nextState) {
-  const token = getToken();
-
-  if (!token || !currentSubject) {
+  if (!currentSubject) {
     return;
   }
 
@@ -110,25 +88,15 @@ async function setCompletionState(nextState) {
   completionBtn.disabled = true;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/progress/${endpoint}`, {
+    const { ok, data } = await apiFetch(`/api/progress/${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
+      body: {
         subject: currentSubject,
         chapter,
-      })
+      },
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        handleUnauthorized();
-        return;
-      }
+    if (!ok) {
       completionStateEl.textContent = data.message || 'Unable to update completion state.';
       return;
     }
@@ -148,34 +116,7 @@ if (completionBtn) {
   });
 }
 
-updateLearningProgress();
-loadCompletionState();
-
-const videoData = {
-  kinematics: [
-    "https://youtube.com/",
-    "https://youtube.com/"
-  ],
-  atomicstructure: [
-    "https://youtube.com/"
-  ],
-  quadraticequations: [
-    "https://youtube.com/"
-  ]
-};
-
-const videoContainer = document.getElementById("videos");
-videoContainer.innerHTML = "";
-
-if (videoData[chapter]) {
-  videoData[chapter].forEach(link => {
-    const a = document.createElement("a");
-    a.href = link;
-    a.target = "_blank";
-    a.innerText = "Watch Video";
-    a.classList.add("video-card");
-    videoContainer.appendChild(a);
-  });
-} else {
-  videoContainer.innerText = "No videos available for this chapter.";
-}
+Promise.all([
+  updateLearningProgress(),
+  loadCompletionState(),
+]);

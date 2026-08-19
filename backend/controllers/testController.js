@@ -119,7 +119,7 @@ const getDashboard = async (req, res, next) => {
       ? Math.round(totalPercentage / totalTests)
       : 0;
 
-    // --- AI-Style Insights Engine ---
+    // --- Performance Insights Engine ---
     let weakestSubject = null;
     let strongestSubject = null;
     let minAvg = Infinity;

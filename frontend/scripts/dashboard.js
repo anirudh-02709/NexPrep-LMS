@@ -1,5 +1,4 @@
 window.onload = async function () {
-  const token = getToken();
   const totalTestsEl = document.getElementById('total-tests');
   const averageScoreEl = document.getElementById('average-score');
   const latestTestEl = document.getElementById('latest-test');
@@ -7,7 +6,7 @@ window.onload = async function () {
   const progressStatsEl = document.getElementById('progress-stats');
   const statusEl = document.getElementById('dashboard-status');
 
-  // AI Insights Elements
+  // Performance Insights Elements
   const weakestSubjectEl = document.getElementById('weakest-subject');
   const strongestSubjectEl = document.getElementById('strongest-subject');
   const performanceTrendEl = document.getElementById('performance-trend');
@@ -19,30 +18,18 @@ window.onload = async function () {
 
   const loadTestDashboard = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/tests/dashboard`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const { ok, data } = await apiFetch('/api/tests/dashboard');
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          handleUnauthorized();
-          return;
-        }
-
+      if (!ok) {
         statusEl.textContent = data.message || 'Unable to load dashboard right now.';
         statusEl.classList.add('error');
         return;
       }
 
-      const dashboard = data.dashboard;
+      const dashboard = data.dashboard || {};
 
-      totalTestsEl.textContent = dashboard.totalTests;
-      averageScoreEl.textContent = `${dashboard.averageScorePercentage}%`;
+      totalTestsEl.textContent = dashboard.totalTests || 0;
+      averageScoreEl.textContent = `${dashboard.averageScorePercentage || 0}%`;
       statusEl.textContent = '';
 
       if (dashboard.latestTest) {
@@ -52,14 +39,15 @@ window.onload = async function () {
       }
 
       if (dashboard.insights) {
-        weakestSubjectEl.textContent = dashboard.insights.weakestSubject;
-        strongestSubjectEl.textContent = dashboard.insights.strongestSubject;
-        performanceTrendEl.textContent = dashboard.insights.performanceTrend;
-        recommendationTextEl.textContent = dashboard.insights.recommendation;
-        consistencyInsightEl.textContent = dashboard.insights.consistencyInsight;
+        weakestSubjectEl.textContent = dashboard.insights.weakestSubject || 'N/A';
+        strongestSubjectEl.textContent = dashboard.insights.strongestSubject || 'N/A';
+        performanceTrendEl.textContent = dashboard.insights.performanceTrend || 'Stable';
+        recommendationTextEl.textContent = dashboard.insights.recommendation || '';
+        consistencyInsightEl.textContent = dashboard.insights.consistencyInsight || '';
       }
 
-      const subjects = Object.keys(dashboard.subjectWiseTestCounts);
+      const subjectCounts = dashboard.subjectWiseTestCounts || {};
+      const subjects = Object.keys(subjectCounts);
 
       subjectStatsEl.textContent = '';
       if (!subjects.length) {
@@ -80,7 +68,7 @@ window.onload = async function () {
 
         const subDiv = document.createElement('div');
         subDiv.className = 'card-sub';
-        subDiv.textContent = `${dashboard.subjectWiseTestCounts[subject]} tests`;
+        subDiv.textContent = `${subjectCounts[subject]} tests`;
 
         card.appendChild(subjectDiv);
         card.appendChild(subDiv);
@@ -98,26 +86,14 @@ window.onload = async function () {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/progress/stats`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
+      const { ok, data } = await apiFetch('/api/progress/stats');
 
       progressStatsEl.textContent = '';
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          handleUnauthorized();
-          return;
-        }
-
+      if (!ok) {
         const errorCard = document.createElement('div');
         errorCard.className = 'card';
-        errorCard.textContent = 'Unable to load chapter progress.';
+        errorCard.textContent = data.message || 'Unable to load chapter progress.';
         progressStatsEl.appendChild(errorCard);
         return;
       }
@@ -125,7 +101,7 @@ window.onload = async function () {
       const orderedSubjects = typeof ALL_SUBJECTS !== 'undefined' ? ALL_SUBJECTS : ['physics', 'chemistry', 'maths'];
 
       orderedSubjects.forEach((subject) => {
-        const subjectStats = data.stats[subject];
+        const subjectStats = data.stats && data.stats[subject];
         if (!subjectStats) return;
 
         const card = document.createElement('div');
@@ -158,6 +134,8 @@ window.onload = async function () {
     }
   };
 
-  await loadTestDashboard();
-  await loadChapterProgress();
+  await Promise.all([
+    loadTestDashboard(),
+    loadChapterProgress(),
+  ]);
 };
