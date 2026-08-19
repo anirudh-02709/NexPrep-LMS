@@ -122,7 +122,7 @@ window.onload = async function () {
         return;
       }
 
-      const orderedSubjects = ['physics', 'chemistry', 'maths'];
+      const orderedSubjects = typeof ALL_SUBJECTS !== 'undefined' ? ALL_SUBJECTS : ['physics', 'chemistry', 'maths'];
 
       orderedSubjects.forEach((subject) => {
         const subjectStats = data.stats[subject];

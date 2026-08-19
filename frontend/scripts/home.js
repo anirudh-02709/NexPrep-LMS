@@ -160,7 +160,7 @@ async function loadHomeStats() {
       return;
     }
 
-    const orderedSubjects = ['physics', 'chemistry', 'maths'];
+    const orderedSubjects = typeof ALL_SUBJECTS !== 'undefined' ? ALL_SUBJECTS : ['physics', 'chemistry', 'maths'];
     let completed = 0;
     let total = 0;
 

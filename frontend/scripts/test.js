@@ -9,28 +9,6 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-// ─── Chapter key map ─────────────────────────────────────
-const chapterKeys = {
-  physics: {
-    'Kinematics': 'kinematics',
-    "Newton's Laws": 'nlm',
-    'Work Power Energy': 'wpe',
-    'Rotational Motion': 'rotational'
-  },
-  chemistry: {
-    'Atomic Structure': 'atomicstructure',
-    'Chemical Bonding': 'chemicalbonding',
-    'Thermodynamics': 'thermodynamics',
-    'Electrochemistry': 'electrochemistry'
-  },
-  maths: {
-    'Quadratic Equations': 'quadraticequations',
-    'Sequences & Series': 'sequences',
-    'Limits & Derivatives': 'limits',
-    'Matrices': 'matrices'
-  }
-};
-
 // ─── Mock/PDF Data ───────────────────────────────────────
 const data = {
   mains: {
@@ -141,12 +119,12 @@ function screenSubject() {
 }
 
 function screenChapters() {
-  const chapters = Object.keys(chapterKeys[state.subject]);
-  const label = escapeHtml(state.subject.charAt(0).toUpperCase() + state.subject.slice(1));
+  const chapters = getSubjectChapters(state.subject);
+  const label = escapeHtml(getSubjectTitle(state.subject));
 
   const cards = chapters.map(ch => `
-    <div class="card" onclick="startTest('${state.subject}', '${ch}')">
-      <div>${escapeHtml(ch)}</div>
+    <div class="card" onclick="startTest('${escapeHtml(state.subject)}', '${escapeHtml(ch.id)}')">
+      <div>${escapeHtml(ch.name)}</div>
       <div class="card-sub">10 Qs · 20 mins</div>
     </div>
   `).join('');
@@ -332,10 +310,11 @@ function screenResult() {
 
 // ─── Test Logic ──────────────────────────────────────────
 
-async function startTest(subject, chapter) {
+async function startTest(subject, chapterId) {
   clearInterval(state.timer);
   state.subject = subject;
-  state.chapter = chapter;
+  state.chapterId = chapterId;
+  state.chapter = getChapterTitle(chapterId);
   state.currentQ = 0;
   state.score = 0;
   state.timeLeft = 120;
@@ -357,11 +336,9 @@ async function startTest(subject, chapter) {
     return;
   }
 
-  const chapterKey = chapterKeys[subject][chapter];
-
   try {
     const response = await fetch(
-      `${API_BASE_URL}/api/tests/questions?subject=${encodeURIComponent(subject)}&chapter=${encodeURIComponent(chapterKey)}`,
+      `${API_BASE_URL}/api/tests/questions?subject=${encodeURIComponent(subject)}&chapter=${encodeURIComponent(chapterId)}`,
       {
         method: 'GET',
         headers: {
@@ -465,7 +442,7 @@ async function saveTestResult() {
     return;
   }
 
-  const chapterKey = chapterKeys[state.subject][state.chapter];
+  const chapterKey = state.chapterId || state.chapter;
 
   state.resultSaveMessage = 'Evaluating and saving result...';
   render();
@@ -532,7 +509,7 @@ function startTimer() {
 }
 
 function retryTest() {
-  startTest(state.subject, state.chapter);
+  startTest(state.subject, state.chapterId || state.chapter);
 }
 
 function goHome() {
@@ -547,6 +524,7 @@ function exitTest() {
 
   clearInterval(state.timer);
   state.screen = 'main';
+  state.chapterId = null;
   state.currentQ = 0;
   state.score = 0;
   state.timeLeft = 120;

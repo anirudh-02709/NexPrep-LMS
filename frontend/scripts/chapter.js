@@ -1,21 +1,6 @@
 const params = new URLSearchParams(window.location.search);
 const chapter = params.get("name");
 
-const chapterSubjects = {
-  kinematics: "physics",
-  nlm: "physics",
-  wpe: "physics",
-  rotational: "physics",
-  atomicstructure: "chemistry",
-  chemicalbonding: "chemistry",
-  thermodynamics: "chemistry",
-  electrochemistry: "chemistry",
-  quadraticequations: "maths",
-  sequences: "maths",
-  limits: "maths",
-  matrices: "maths"
-};
-
 // Guard: If URL has no ?name= query parameter, show fallback state
 if (!chapter) {
     document.getElementById("chapter-title").innerText = "Chapter not found";
@@ -28,7 +13,7 @@ const chapterTitleEl = document.getElementById("chapter-title");
 const completionStateEl = document.getElementById("chapter-completion-state");
 const completionBtn = document.getElementById("chapter-completion-btn");
 
-let currentSubject = chapterSubjects[chapter];
+let currentSubject = getChapterSubject(chapter);
 let currentCompletionState = false;
 
 chapterTitleEl.innerText = getChapterTitle(chapter);

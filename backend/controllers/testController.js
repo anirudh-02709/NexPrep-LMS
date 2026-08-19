@@ -60,13 +60,30 @@ const saveTestResult = async (req, res, next) => {
 
 const getTestHistory = async (req, res, next) => {
   try {
-    const results = await TestResult.find({ user: req.user.id })
-      .select('subject chapter score totalQuestions createdAt')
-      .sort({ createdAt: -1 });
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const skip = (page - 1) * limit;
+
+    const [totalResults, results] = await Promise.all([
+      TestResult.countDocuments({ user: req.user.id }),
+      TestResult.find({ user: req.user.id })
+        .select('subject chapter score totalQuestions createdAt')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    const totalPages = Math.ceil(totalResults / limit) || 1;
 
     return res.status(200).json({
       success: true,
       results,
+      page,
+      limit,
+      totalResults,
+      totalPages,
+      hasMore: page < totalPages,
     });
   } catch (error) {
     return next(error);
@@ -77,7 +94,8 @@ const getDashboard = async (req, res, next) => {
   try {
     const results = await TestResult.find({ user: req.user.id })
       .select('subject chapter score totalQuestions createdAt')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     const totalTests = results.length;
     let totalPercentage = 0;
