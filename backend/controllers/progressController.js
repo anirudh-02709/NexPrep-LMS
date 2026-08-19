@@ -1,12 +1,7 @@
 const Progress = require('../models/Progress');
+const { TAXONOMY, validateSubjectAndChapter } = require('../data/taxonomy');
 
-const SUBJECT_CHAPTERS = {
-  physics: ['kinematics', 'nlm', 'wpe', 'rotational'],
-  chemistry: ['atomicstructure', 'chemicalbonding', 'thermodynamics', 'electrochemistry'],
-  maths: ['quadraticequations', 'sequences', 'limits', 'matrices'],
-};
-
-const getSubjectTotalChapters = (subject) => (SUBJECT_CHAPTERS[subject] || []).length;
+const getSubjectTotalChapters = (subject) => (TAXONOMY[subject] || []).length;
 
 const buildProgressPayload = (progress) => ({
   subject: progress.subject,
@@ -19,31 +14,28 @@ const updateProgressRecord = async (req, res, next, completed) => {
   try {
     const { subject, chapter } = req.body;
 
-    if (!subject || !chapter) {
-      res.status(400);
-      throw new Error('Please provide subject and chapter.');
-    }
+    const validated = validateSubjectAndChapter(subject, chapter);
 
     const updateData = {
       lastOpenedAt: new Date(),
     };
 
     if (completed !== undefined) {
-      updateData.completed = completed;
+      updateData.completed = Boolean(completed);
     }
 
     const progress = await Progress.findOneAndUpdate(
       {
         user: req.user.id,
-        subject,
-        chapter,
+        subject: validated.subject,
+        chapter: validated.chapter,
       },
       {
         $set: updateData,
         $setOnInsert: {
           user: req.user.id,
-          subject,
-          chapter,
+          subject: validated.subject,
+          chapter: validated.chapter,
         },
       },
       {
@@ -58,6 +50,9 @@ const updateProgressRecord = async (req, res, next, completed) => {
       progress: buildProgressPayload(progress),
     });
   } catch (error) {
+    if (error.statusCode) {
+      res.status(error.statusCode);
+    }
     return next(error);
   }
 };
@@ -78,15 +73,12 @@ const getChapterStatus = async (req, res, next) => {
   try {
     const { subject, chapter } = req.query;
 
-    if (!subject || !chapter) {
-      res.status(400);
-      throw new Error('Please provide subject and chapter.');
-    }
+    const validated = validateSubjectAndChapter(subject, chapter);
 
     const progress = await Progress.findOne({
       user: req.user.id,
-      subject,
-      chapter,
+      subject: validated.subject,
+      chapter: validated.chapter,
     }).select('subject chapter completed lastOpenedAt');
 
     return res.status(200).json({
@@ -94,6 +86,9 @@ const getChapterStatus = async (req, res, next) => {
       progress: progress ? buildProgressPayload(progress) : null,
     });
   } catch (error) {
+    if (error.statusCode) {
+      res.status(error.statusCode);
+    }
     return next(error);
   }
 };
@@ -108,7 +103,7 @@ const getSubjectProgressStats = async (req, res, next) => {
     let totalCompleted = 0;
     let totalChapters = 0;
 
-    Object.keys(SUBJECT_CHAPTERS).forEach((subject) => {
+    Object.keys(TAXONOMY).forEach((subject) => {
       const totalSubjectChapters = getSubjectTotalChapters(subject);
       const completedSubjectChapters = progressRecords.filter(
         (record) => record.subject === subject && record.completed

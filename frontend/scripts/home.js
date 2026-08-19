@@ -17,16 +17,24 @@ function updateRecentActivity() {
   const activityEl = document.getElementById('recent-activity-list');
   if (!activityEl) return;
 
+  activityEl.textContent = '';
+
   const items = [];
 
   if (homeState.continueProgress) {
     const { subject, chapter } = homeState.continueProgress;
-    items.push(`
-      <div class="activity-item">
-        <span>Recently visited</span>
-        <strong>${getSubjectTitle(subject)} - ${getChapterTitle(chapter)}</strong>
-      </div>
-    `);
+    const item = document.createElement('div');
+    item.className = 'activity-item';
+
+    const label = document.createElement('span');
+    label.textContent = 'Recently visited';
+
+    const strong = document.createElement('strong');
+    strong.textContent = `${getSubjectTitle(subject)} - ${getChapterTitle(chapter)}`;
+
+    item.appendChild(label);
+    item.appendChild(strong);
+    items.push(item);
   }
 
   if (homeState.latestTest) {
@@ -34,17 +42,29 @@ function updateRecentActivity() {
     const scoreText = latest.totalQuestions
       ? `${latest.score}/${latest.totalQuestions}`
       : 'Saved score';
-    items.push(`
-      <div class="activity-item">
-        <span>Recent test score</span>
-        <strong>${getSubjectTitle(latest.subject)} - ${getChapterTitle(latest.chapter)} (${scoreText})</strong>
-      </div>
-    `);
+
+    const item = document.createElement('div');
+    item.className = 'activity-item';
+
+    const label = document.createElement('span');
+    label.textContent = 'Recent test score';
+
+    const strong = document.createElement('strong');
+    strong.textContent = `${getSubjectTitle(latest.subject)} - ${getChapterTitle(latest.chapter)} (${scoreText})`;
+
+    item.appendChild(label);
+    item.appendChild(strong);
+    items.push(item);
   }
 
-  activityEl.innerHTML = items.length
-    ? items.join('')
-    : '<p class="card-text">Start a chapter or attempt a test to build your activity feed.</p>';
+  if (items.length) {
+    items.forEach((it) => activityEl.appendChild(it));
+  } else {
+    const emptyMsg = document.createElement('p');
+    emptyMsg.className = 'card-text';
+    emptyMsg.textContent = 'Start a chapter or attempt a test to build your activity feed.';
+    activityEl.appendChild(emptyMsg);
+  }
 }
 
 function calculateStreak(results) {

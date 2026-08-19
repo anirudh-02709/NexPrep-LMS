@@ -1,3 +1,14 @@
+// ─── Helper ──────────────────────────────────────────────
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // ─── Chapter key map ─────────────────────────────────────
 const chapterKeys = {
   physics: {
@@ -131,11 +142,11 @@ function screenSubject() {
 
 function screenChapters() {
   const chapters = Object.keys(chapterKeys[state.subject]);
-  const label = state.subject.charAt(0).toUpperCase() + state.subject.slice(1);
+  const label = escapeHtml(state.subject.charAt(0).toUpperCase() + state.subject.slice(1));
 
   const cards = chapters.map(ch => `
     <div class="card" onclick="startTest('${state.subject}', '${ch}')">
-      <div>${ch}</div>
+      <div>${escapeHtml(ch)}</div>
       <div class="card-sub">10 Qs · 20 mins</div>
     </div>
   `).join('');
@@ -172,9 +183,9 @@ function screenMode() {
 function screenTests() {
   const tests = data[state.type].tests;
   const cards = tests.map(t => `
-    <div class="card" onclick="alert('${t} coming soon!')">
+    <div class="card" onclick="alert('${escapeHtml(t)} coming soon!')">
       <div>⏱️</div>
-      <div>${t}</div>
+      <div>${escapeHtml(t)}</div>
       <div class="card-sub">3 hrs · 300 marks</div>
     </div>
   `).join('');
@@ -190,9 +201,9 @@ function screenTests() {
 function screenPDFs() {
   const pdfs = data[state.type].pdfs;
   const cards = pdfs.map(p => `
-    <a href="${p.url}" class="card pdf-card" download>
+    <a href="${encodeURI(p.url)}" class="card pdf-card" download>
       <div>📄</div>
-      <div>${p.name}</div>
+      <div>${escapeHtml(p.name)}</div>
       <div class="card-sub">Click to download</div>
     </a>
   `).join('');
@@ -209,7 +220,7 @@ function screenTest() {
   if (state.loading) {
     return `
       <button class="back-btn" onclick="back()"><span class="back-icon" aria-hidden="true"></span><span>Back</span></button>
-      <h1>${state.chapter}</h1>
+      <h1>${escapeHtml(state.chapter)}</h1>
       <p class="page-message">Loading questions from server...</p>
     `;
   }
@@ -217,8 +228,8 @@ function screenTest() {
   if (state.loadingError) {
     return `
       <button class="back-btn" onclick="back()"><span class="back-icon" aria-hidden="true"></span><span>Back</span></button>
-      <h1>${state.chapter}</h1>
-      <p class="page-message error">${state.loadingError}</p>
+      <h1>${escapeHtml(state.chapter)}</h1>
+      <p class="page-message error">${escapeHtml(state.loadingError)}</p>
       <div class="result-actions" style="margin-top: 20px;">
         <button class="card" onclick="retryTest()">🔁 Try Again</button>
       </div>
@@ -228,7 +239,7 @@ function screenTest() {
   if (!state.questions || state.questions.length === 0) {
     return `
       <button class="back-btn" onclick="back()"><span class="back-icon" aria-hidden="true"></span><span>Back</span></button>
-      <h1>${state.chapter}</h1>
+      <h1>${escapeHtml(state.chapter)}</h1>
       <p class="page-message">No questions available for this chapter.</p>
     `;
   }
@@ -251,7 +262,7 @@ function screenTest() {
     return `
       <button class="option-btn${selectedClass}" id="opt-${i}" onclick="selectAnswer(${i})"${disabledAttr}>
         <span class="option-label">${String.fromCharCode(65 + i)}</span>
-        ${opt}
+        ${escapeHtml(opt)}
       </button>
     `;
   }).join('');
@@ -259,7 +270,7 @@ function screenTest() {
   return `
     <div class="test-topbar">
       <div>
-        <div class="test-chapter-name">${state.chapter}</div>
+        <div class="test-chapter-name">${escapeHtml(state.chapter)}</div>
         <div class="test-progress">Question ${qNum} of ${total}</div>
       </div>
       <div class="${timerClass}" id="timer-display">${mins}:${secs}</div>
@@ -269,7 +280,7 @@ function screenTest() {
       <div class="progress-bar-fill" style="width: ${(qNum / total) * 100}%"></div>
     </div>
     <div class="question-box">
-      <p class="question-text">Q${qNum}. ${q.q}</p>
+      <p class="question-text">Q${qNum}. ${escapeHtml(q.q)}</p>
       <div class="options-list">${options}</div>
     </div>
     <button class="next-btn" id="next-btn" onclick="nextQuestion()" ${state.answered ? '' : 'disabled'}>
@@ -283,14 +294,14 @@ function screenResult() {
   const score = state.score || 0;
   const percent = total ? Math.round((score / total) * 100) : 0;
   const saveMessage = state.resultSaveMessage
-    ? `<div class="card-sub">${state.resultSaveMessage}</div>`
+    ? `<div class="card-sub">${escapeHtml(state.resultSaveMessage)}</div>`
     : '';
 
   if (state.submitting) {
     return `
       <div class="result-box">
         <div class="result-title">Evaluating Test...</div>
-        <div class="result-chapter">${state.chapter}</div>
+        <div class="result-chapter">${escapeHtml(state.chapter)}</div>
         <p class="card-text">Submitting your answers to the server for authoritative grading.</p>
         ${saveMessage}
       </div>
@@ -305,7 +316,7 @@ function screenResult() {
   return `
     <div class="result-box">
       <div class="result-title">Test Complete</div>
-      <div class="result-chapter">${state.chapter}</div>
+      <div class="result-chapter">${escapeHtml(state.chapter)}</div>
       <div class="result-score">${score} / ${total}</div>
       <div class="result-percent">${percent}%</div>
       <div class="result-message ${messageClass}">${message}</div>

@@ -61,20 +61,31 @@ window.onload = async function () {
 
       const subjects = Object.keys(dashboard.subjectWiseTestCounts);
 
+      subjectStatsEl.textContent = '';
       if (!subjects.length) {
         statusEl.textContent = 'No dashboard data yet. Complete a test to see progress here.';
-        subjectStatsEl.innerHTML = '<div class="card">No subject data yet.</div>';
+        const emptyCard = document.createElement('div');
+        emptyCard.className = 'card';
+        emptyCard.textContent = 'No subject data yet.';
+        subjectStatsEl.appendChild(emptyCard);
         return;
       }
 
-      subjectStatsEl.innerHTML = subjects.map((subject) => {
-        return `
-          <div class="card">
-            <div>${getSubjectTitle(subject)}</div>
-            <div class="card-sub">${dashboard.subjectWiseTestCounts[subject]} tests</div>
-          </div>
-        `;
-      }).join('');
+      subjects.forEach((subject) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const subjectDiv = document.createElement('div');
+        subjectDiv.textContent = getSubjectTitle(subject);
+
+        const subDiv = document.createElement('div');
+        subDiv.className = 'card-sub';
+        subDiv.textContent = `${dashboard.subjectWiseTestCounts[subject]} tests`;
+
+        card.appendChild(subjectDiv);
+        card.appendChild(subDiv);
+        subjectStatsEl.appendChild(card);
+      });
     } catch (error) {
       statusEl.textContent = 'Unable to load dashboard. Please check that the backend is running.';
       statusEl.classList.add('error');
@@ -96,30 +107,54 @@ window.onload = async function () {
 
       const data = await response.json();
 
+      progressStatsEl.textContent = '';
+
       if (!response.ok) {
         if (response.status === 401) {
           handleUnauthorized();
           return;
         }
 
-        progressStatsEl.innerHTML = '<div class="card">Unable to load chapter progress.</div>';
+        const errorCard = document.createElement('div');
+        errorCard.className = 'card';
+        errorCard.textContent = 'Unable to load chapter progress.';
+        progressStatsEl.appendChild(errorCard);
         return;
       }
 
       const orderedSubjects = ['physics', 'chemistry', 'maths'];
 
-      progressStatsEl.innerHTML = orderedSubjects.map((subject) => {
+      orderedSubjects.forEach((subject) => {
         const subjectStats = data.stats[subject];
-        return `
-          <div class="card progress-card">
-            <div class="card-title">${getSubjectTitle(subject)} Progress</div>
-            <div class="progress-percentage">${subjectStats.completionPercentage}%</div>
-            <div class="card-sub">${subjectStats.completedChapters}/${subjectStats.totalChapters} chapters completed</div>
-          </div>
-        `;
-      }).join('');
+        if (!subjectStats) return;
+
+        const card = document.createElement('div');
+        card.className = 'card progress-card';
+
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'card-title';
+        titleDiv.textContent = `${getSubjectTitle(subject)} Progress`;
+
+        const percentDiv = document.createElement('div');
+        percentDiv.className = 'progress-percentage';
+        percentDiv.textContent = `${subjectStats.completionPercentage}%`;
+
+        const subDiv = document.createElement('div');
+        subDiv.className = 'card-sub';
+        subDiv.textContent = `${subjectStats.completedChapters}/${subjectStats.totalChapters} chapters completed`;
+
+        card.appendChild(titleDiv);
+        card.appendChild(percentDiv);
+        card.appendChild(subDiv);
+
+        progressStatsEl.appendChild(card);
+      });
     } catch (error) {
-      progressStatsEl.innerHTML = '<div class="card">Unable to load chapter progress.</div>';
+      progressStatsEl.textContent = '';
+      const errorCard = document.createElement('div');
+      errorCard.className = 'card';
+      errorCard.textContent = 'Unable to load chapter progress.';
+      progressStatsEl.appendChild(errorCard);
     }
   };
 

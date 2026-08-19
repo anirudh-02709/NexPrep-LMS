@@ -32,11 +32,13 @@ const saveTestResult = async (req, res, next) => {
 
     // Calculate score and totalQuestions server-side strictly from answers
     const { score, totalQuestions } = validateAndScoreSubmission(subject, chapter, answers);
+    const normalizedSubject = String(subject).toLowerCase().trim();
+    const normalizedChapter = String(chapter).toLowerCase().trim();
 
     const result = await TestResult.create({
       user: req.user.id,
-      subject,
-      chapter,
+      subject: normalizedSubject,
+      chapter: normalizedChapter,
       score,
       totalQuestions,
     });

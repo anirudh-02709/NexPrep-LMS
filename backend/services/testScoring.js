@@ -1,4 +1,5 @@
 const questionBank = require('../data/questionBank');
+const { validateSubjectAndChapter } = require('../data/taxonomy');
 
 /**
  * Retrieves sanitized question data for a given subject and chapter.
@@ -9,24 +10,11 @@ const questionBank = require('../data/questionBank');
  * @returns {Array<{ id: string, q: string, options: string[] }>}
  */
 const getSanitizedQuestions = (subject, chapter) => {
-  if (!subject || !chapter) {
-    const error = new Error('Please provide subject and chapter.');
-    error.statusCode = 400;
-    throw error;
-  }
+  const validated = validateSubjectAndChapter(subject, chapter);
 
-  const normalizedSubject = String(subject).toLowerCase().trim();
-  const normalizedChapter = String(chapter).toLowerCase().trim();
-
-  if (!questionBank[normalizedSubject]) {
-    const error = new Error(`Invalid subject: '${subject}'.`);
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const questions = questionBank[normalizedSubject][normalizedChapter];
+  const questions = questionBank[validated.subject][validated.chapter];
   if (!questions) {
-    const error = new Error(`Invalid chapter: '${chapter}' for subject '${subject}'.`);
+    const error = new Error(`No questions available for '${validated.subject}/${validated.chapter}'.`);
     error.statusCode = 400;
     throw error;
   }
@@ -48,24 +36,11 @@ const getSanitizedQuestions = (subject, chapter) => {
  * @returns {{ score: number, totalQuestions: number }}
  */
 const validateAndScoreSubmission = (subject, chapter, answers) => {
-  if (!subject || !chapter) {
-    const error = new Error('Please provide subject and chapter.');
-    error.statusCode = 400;
-    throw error;
-  }
+  const validated = validateSubjectAndChapter(subject, chapter);
 
-  const normalizedSubject = String(subject).toLowerCase().trim();
-  const normalizedChapter = String(chapter).toLowerCase().trim();
-
-  if (!questionBank[normalizedSubject]) {
-    const error = new Error(`Invalid subject: '${subject}'.`);
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const authoritativeQuestions = questionBank[normalizedSubject][normalizedChapter];
+  const authoritativeQuestions = questionBank[validated.subject][validated.chapter];
   if (!authoritativeQuestions) {
-    const error = new Error(`Invalid chapter: '${chapter}' for subject '${subject}'.`);
+    const error = new Error(`No question bank found for '${validated.subject}/${validated.chapter}'.`);
     error.statusCode = 400;
     throw error;
   }
@@ -110,7 +85,7 @@ const validateAndScoreSubmission = (subject, chapter, answers) => {
     }
 
     if (!authMap.has(questionId)) {
-      const error = new Error(`Question ID '${questionId}' does not belong to ${normalizedSubject}/${normalizedChapter}.`);
+      const error = new Error(`Question ID '${questionId}' does not belong to ${validated.subject}/${validated.chapter}.`);
       error.statusCode = 400;
       throw error;
     }
