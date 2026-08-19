@@ -1,13 +1,37 @@
 const TestResult = require('../models/TestResult');
+const { getSanitizedQuestions, validateAndScoreSubmission } = require('../services/testScoring');
+
+const getTestQuestions = async (req, res, next) => {
+  try {
+    const { subject, chapter } = req.query;
+    const questions = getSanitizedQuestions(subject, chapter);
+
+    return res.status(200).json({
+      success: true,
+      subject,
+      chapter,
+      totalQuestions: questions.length,
+      questions,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      res.status(error.statusCode);
+    }
+    return next(error);
+  }
+};
 
 const saveTestResult = async (req, res, next) => {
   try {
-    const { subject, chapter, score, totalQuestions } = req.body;
+    const { subject, chapter, answers } = req.body;
 
-    if (!subject || !chapter || score === undefined || totalQuestions === undefined) {
+    if (!subject || !chapter || !answers) {
       res.status(400);
-      throw new Error('Please provide subject, chapter, score, and totalQuestions.');
+      throw new Error('Please provide subject, chapter, and answers.');
     }
+
+    // Calculate score and totalQuestions server-side strictly from answers
+    const { score, totalQuestions } = validateAndScoreSubmission(subject, chapter, answers);
 
     const result = await TestResult.create({
       user: req.user.id,
@@ -19,10 +43,15 @@ const saveTestResult = async (req, res, next) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Test result saved successfully.',
+      message: 'Test evaluated and saved successfully.',
       result,
+      score,
+      totalQuestions,
     });
   } catch (error) {
+    if (error.statusCode) {
+      res.status(error.statusCode);
+    }
     return next(error);
   }
 };
@@ -157,6 +186,7 @@ const getDashboard = async (req, res, next) => {
 };
 
 module.exports = {
+  getTestQuestions,
   saveTestResult,
   getTestHistory,
   getDashboard,

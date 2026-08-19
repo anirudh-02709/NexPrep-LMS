@@ -16,7 +16,7 @@ const chapterSubjects = {
   matrices: "maths"
 };
 
-// ✅ Guard: if URL has no ?name= param, show fallback instead of crashing
+// Guard: If URL has no ?name= query parameter, show fallback state
 if (!chapter) {
     document.getElementById("chapter-title").innerText = "Chapter not found";
     document.getElementById("videos").innerText = "No chapter was specified. Please go back and select a chapter.";

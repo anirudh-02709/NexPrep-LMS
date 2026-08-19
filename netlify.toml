@@ -2,7 +2,7 @@
 
 # Build settings
 [build]
-  # Publish directory - contains pages, styles, and scripts folders
+  # Publish directory - contains HTML pages, styles, and scripts
   publish = "frontend"
   # No build command needed - static files only
   command = ""

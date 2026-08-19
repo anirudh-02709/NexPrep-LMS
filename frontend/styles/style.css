@@ -495,6 +495,12 @@ body {
   border-color: rgba(99,179,237,0.3);
 }
 
+.option-btn.selected {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
 .option-btn.correct {
   background: rgba(16,185,129,0.15);
   border-color: rgba(16,185,129,0.5);

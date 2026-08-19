@@ -45,7 +45,7 @@ npm start
 Open the frontend pages directly in the browser, starting with:
 
 ```text
-frontend/pages/index.html
+frontend/index.html
 ```
 
 For local API calls, keep:
