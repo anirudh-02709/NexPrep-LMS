@@ -34,22 +34,17 @@ async function handleRegistration() {
     registerButton.disabled = true;
     registerButton.textContent = 'Creating account...';
 
-    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    const { ok, data } = await apiFetch('/api/auth/register', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+      body: {
         name,
         email,
         password,
         confirmPassword,
-      }),
+      },
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
+    if (!ok) {
       messageEl.textContent = data.message || 'Registration failed. Please try again.';
       return;
     }

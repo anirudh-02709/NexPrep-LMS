@@ -16,20 +16,15 @@ async function handleSignIn() {
     signInButton.disabled = true;
     signInButton.textContent = 'Loading...';
 
-    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const { ok, data } = await apiFetch('/api/auth/login', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+      body: {
         email,
         password,
-      }),
+      },
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
+    if (!ok) {
       messageEl.textContent = data.message || 'Login failed. Please try again.';
       return;
     }
@@ -67,17 +62,12 @@ async function handleGoogleLogin() {
     const googleResult = await firebase.auth().signInWithPopup(provider);
     const idToken = await googleResult.user.getIdToken();
 
-    const response = await fetch(`${API_BASE_URL}/api/auth/google`, {
+    const { ok, data } = await apiFetch('/api/auth/google', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ idToken }),
+      body: { idToken },
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
+    if (!ok) {
       messageEl.textContent = data.message || 'Google login failed. Please try again.';
       return;
     }

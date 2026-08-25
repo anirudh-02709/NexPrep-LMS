@@ -53,7 +53,13 @@ async function apiFetch(endpoint, options = {}) {
     body,
   });
 
-  if (response.status === 401) {
+  const isAuthEndpoint = typeof endpoint === 'string' && (
+    endpoint.includes('/api/auth/login') ||
+    endpoint.includes('/api/auth/google') ||
+    endpoint.includes('/api/auth/register')
+  );
+
+  if (response.status === 401 && !isAuthEndpoint && options.redirectOnUnauthorized !== false) {
     handleUnauthorized();
     return { ok: false, status: 401, data: { success: false, message: 'Unauthorized' } };
   }

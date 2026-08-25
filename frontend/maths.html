@@ -26,11 +26,13 @@
     <button class="back-btn" onclick="window.location.href='home.html'"><span class="back-icon" aria-hidden="true"></span><span>Back to Home</span></button>
     <h1>Mathematics</h1>
     <p>Select a chapter to start learning</p>
-    <div class="chapters">
-      <a href="chapter.html?name=quadraticequations" class="card">Quadratic Equations</a>
-      <a href="chapter.html?name=sequences" class="card">Sequences & Series</a>
-      <a href="chapter.html?name=limits" class="card">Limits & Derivatives</a>
-      <a href="chapter.html?name=matrices" class="card">Matrices</a>
+    <div class="chapters" id="chapters-list">
+      <noscript>
+        <a href="chapter.html?name=quadraticequations" class="card">Quadratic Equations</a>
+        <a href="chapter.html?name=sequences" class="card">Sequences & Series</a>
+        <a href="chapter.html?name=limits" class="card">Limits & Derivatives</a>
+        <a href="chapter.html?name=matrices" class="card">Matrices</a>
+      </noscript>
     </div>
   </div>
 
@@ -38,5 +40,16 @@
 
 <script src="scripts/auth.js"></script>
 <script src="scripts/authGuard.js"></script>
+<script src="scripts/chapterNames.js"></script>
+<script>
+  (function () {
+    const container = document.getElementById('chapters-list');
+    if (!container) return;
+    const chapters = getSubjectChapters('maths');
+    container.innerHTML = chapters.map(ch =>
+      `<a href="chapter.html?name=${encodeURIComponent(ch.id)}" class="card">${ch.name}</a>`
+    ).join('');
+  })();
+</script>
 </body>
 </html>
