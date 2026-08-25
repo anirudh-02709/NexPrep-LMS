@@ -1,12 +1,17 @@
 const dns = require('dns');
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+const path = require('path');
+const dotenv = require('dotenv');
+
+dotenv.config({ path: path.join(__dirname, '.env') });
+
+// Enable Google DNS servers override only when explicitly requested in environment
+if (process.env.DNS_OVERRIDE === 'true') {
+  dns.setServers(['8.8.8.8', '8.8.4.4']);
+}
 
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
-const path = require('path');
-
-dotenv.config({ path: path.join(__dirname, '.env') });
+const helmet = require('helmet');
 
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
@@ -52,6 +57,11 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '100kb' }));
 
