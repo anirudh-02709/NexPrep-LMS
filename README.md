@@ -9,6 +9,21 @@ NexPrep is a full-stack Learning Management System (LMS) engineered for JEE (Joi
 
 ---
 
+## Live Deployment
+
+NexPrep is deployed as a multi-service full-stack application.
+
+| Component | Platform | Link |
+| :--- | :--- | :--- |
+| Frontend | Netlify | [Live Demo](https://precious-griffin-831939.netlify.app/) |
+| Backend / REST API | Render | [API](https://nexprep-backend.onrender.com) |
+| Database | MongoDB Atlas | — |
+| Google Authentication | Firebase | — |
+
+The frontend client is statically deployed to Netlify and connects with the Node.js/Express REST API hosted on Render. Persistent records are stored in MongoDB Atlas, and Google authentication is handled through Firebase with server-side ID-token verification using the Firebase Admin SDK.
+
+---
+
 ## Architecture Overview
 
 ```mermaid
