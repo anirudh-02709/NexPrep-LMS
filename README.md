@@ -13,51 +13,81 @@ NexPrep is a full-stack Learning Management System (LMS) engineered for JEE (Joi
 
 ```mermaid
 flowchart TD
-    subgraph Client ["Frontend Client (Static / Netlify)"]
-        UI["HTML5 UI & Vanilla CSS"]
-        AuthScript["auth.js (apiFetch & Token Management)"]
-        TaxonomyCache["chapterNames.js (Generated Contract)"]
-        TestEngine["test.js (Stateful Quiz Engine)"]
+    subgraph Frontend ["1. Frontend Client (Static / Netlify)"]
+        UI["HTML5 Views & Vanilla CSS<br/>(home, physics, chemistry, maths, test, dashboard)"]
+        AuthScript["auth.js & apiFetch<br/>(Token Management & API Client)"]
+        QuizEngine["test.js<br/>(Timed State & Answer Selection)"]
+        TaxonomyCache["chapterNames.js<br/>(Generated Frontend Contract)"]
     end
 
-    subgraph Gateway ["Express.js REST Gateway"]
-        Security["Helmet (Security Headers) & CORS Whitelist"]
-        RateLimiter["express-rate-limit (Auth Endpoints)"]
-        AuthMiddleware["authMiddleware (JWT & User Existence Check)"]
-        ErrorHandler["errorMiddleware (Structured JSON Responses)"]
+    subgraph ExpressGateway ["2. Express.js REST Gateway"]
+        GlobalSec["Global Security Layer<br/>(Helmet Security Headers, CORS Whitelist, 100kb Limit)"]
+        
+        subgraph RouteHandling ["Route Dispatch & Specialized Middleware"]
+            HealthRoute["Health Routes<br/>(/, /api/health)"]
+            AuthRoute["Auth Routes<br/>(/api/auth/register, /login, /google)"]
+            AuthLimiter["authLimiter<br/>(express-rate-limit: 20 req/15min)"]
+            
+            ProtectedRoutes["Protected Routes<br/>(/api/progress/*, /api/tests/*, /api/auth/me)"]
+            AuthMiddleware["authMiddleware (protect)<br/>(JWT Verification & Live User Lookup)"]
+        end
+        
+        ErrorHandler["Centralized Error Pipeline<br/>(errorMiddleware & notFound Handler)"]
     end
 
-    subgraph AppLogic ["Application Services & Routing"]
-        AuthCtrl["authController.js (Local & OAuth)"]
-        ProgressCtrl["progressController.js (Atomic Upserts)"]
-        TestCtrl["testController.js (Analytics & Pagination)"]
-        ScoringSvc["testScoring.js (Authoritative Evaluator)"]
-        CanonicalTaxonomy["backend/data/taxonomy.js"]
-        AuthoritativeQB["backend/data/questionBank.js"]
+    subgraph AppLogic ["3. Application Logic & Services"]
+        HealthCtrl["healthController.js<br/>(Liveness Probes)"]
+        AuthCtrl["authController.js<br/>(Bcrypt Hashing & Account Merging)"]
+        ProgressCtrl["progressController.js<br/>(Atomic Upserts & Subject Stats)"]
+        TestCtrl["testController.js<br/>(Pagination & Performance Analytics)"]
+        ScoringSvc["testScoring.js<br/>(Authoritative Evaluator & Sanitizer)"]
     end
 
-    subgraph Persistence ["Data & Third-Party Providers"]
-        MongoDB[("MongoDB Atlas (Users, Progress, TestResults)")]
-        FirebaseAdmin["Firebase Admin SDK (OAuth ID Token Verification)"]
+    subgraph CanonicalData ["4. Canonical Content (Single Source of Truth)"]
+        CanonicalTaxonomy["taxonomy.js<br/>(Canonical Subject/Chapter Enum)"]
+        AuthoritativeQB["questionBank.js<br/>(120 Curated Questions & Answer Keys)"]
     end
 
+    subgraph Persistence ["5. Persistence & External Services"]
+        MongoDB[("MongoDB Atlas<br/>(users, progresses, testresults)")]
+        FirebaseAdmin["Firebase Admin SDK<br/>(Google ID Token Verification)"]
+    end
+
+    %% Client to Gateway
     UI --> AuthScript
-    AuthScript -->|HTTP / REST + Bearer JWT| Security
-    Security --> RateLimiter
-    RateLimiter --> AuthMiddleware
-    AuthMiddleware --> AuthCtrl
-    AuthMiddleware --> ProgressCtrl
-    AuthMiddleware --> TestCtrl
+    AuthScript -->|HTTP / REST Requests| GlobalSec
+    GlobalSec --> HealthRoute
+    GlobalSec --> AuthRoute
+    GlobalSec --> ProtectedRoutes
 
-    AuthCtrl --> FirebaseAdmin
-    AuthCtrl --> MongoDB
-    ProgressCtrl --> CanonicalTaxonomy
-    ProgressCtrl --> MongoDB
-    TestCtrl --> ScoringSvc
-    ScoringSvc --> AuthoritativeQB
-    TestCtrl --> MongoDB
+    %% Gateway Routing & Middleware
+    HealthRoute -->|Public (No Auth)| HealthCtrl
+    AuthRoute --> AuthLimiter
+    AuthLimiter --> AuthCtrl
+    ProtectedRoutes -->|Requires Bearer Token| AuthMiddleware
+    AuthMiddleware -->|Authenticated User| ProgressCtrl
+    AuthMiddleware -->|Authenticated User| TestCtrl
+    AuthMiddleware -->|Authenticated User| AuthCtrl
 
-    CanonicalTaxonomy -.->|npm run build:taxonomy| TaxonomyCache
+    %% Controller Integrations
+    AuthCtrl -->|Verify Google idToken| FirebaseAdmin
+    AuthCtrl -->|User Queries & Bcrypt Hashes| MongoDB
+
+    ProgressCtrl -->|Subject/Chapter Validation| CanonicalTaxonomy
+    ProgressCtrl -->|Atomic Progress Upserts| MongoDB
+
+    TestCtrl -->|Sanitized Questions & Evaluation| ScoringSvc
+    TestCtrl -->|Compound-Indexed Queries| MongoDB
+
+    ScoringSvc -->|Read-Only (Strips Answer Keys)| AuthoritativeQB
+    ScoringSvc -->|Server-Side Grading| AuthoritativeQB
+
+    %% Error Handling (Express Pipeline)
+    ExpressGateway -.->|Unhandled Errors & 404s| ErrorHandler
+
+    %% Build-Time Contract Sync
+    CanonicalTaxonomy -.->|npm run build:taxonomy (Build-Time Sync)| TaxonomyCache
+    TaxonomyCache -.->|Static Import| UI
 ```
 
 ---
