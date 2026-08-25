@@ -13,55 +13,55 @@ NexPrep is a full-stack Learning Management System (LMS) engineered for JEE (Joi
 
 ```mermaid
 flowchart TD
-    subgraph Frontend ["1. Frontend Client (Static / Netlify)"]
-        UI["HTML5 Views & Vanilla CSS<br/>(home, physics, chemistry, maths, test, dashboard)"]
-        AuthScript["auth.js & apiFetch<br/>(Token Management & API Client)"]
-        QuizEngine["test.js<br/>(Timed State & Answer Selection)"]
-        TaxonomyCache["chapterNames.js<br/>(Generated Frontend Contract)"]
+    subgraph Frontend ["1. Frontend Client - Static Netlify"]
+        UI["HTML5 Views and Vanilla CSS<br/>home, physics, chemistry, maths, test, dashboard"]
+        AuthScript["auth.js and apiFetch<br/>Token Management and API Client"]
+        QuizEngine["test.js<br/>Timed State and Answer Selection"]
+        TaxonomyCache["chapterNames.js<br/>Generated Frontend Contract"]
     end
 
     subgraph ExpressGateway ["2. Express.js REST Gateway"]
-        GlobalSec["Global Security Layer<br/>(Helmet Security Headers, CORS Whitelist, 100kb Limit)"]
+        GlobalSec["Global Security Layer<br/>Helmet Security Headers, CORS Whitelist, 100kb Limit"]
         
-        subgraph RouteHandling ["Route Dispatch & Specialized Middleware"]
-            HealthRoute["Health Routes<br/>(/, /api/health)"]
-            AuthRoute["Auth Routes<br/>(/api/auth/register, /login, /google)"]
-            AuthLimiter["authLimiter<br/>(express-rate-limit: 20 req/15min)"]
+        subgraph RouteHandling ["Route Dispatch and Specialized Middleware"]
+            HealthRoute["Health Routes<br/>GET / and GET /api/health"]
+            AuthRoute["Auth Routes<br/>POST /register, /login, /google"]
+            AuthLimiter["authLimiter<br/>express-rate-limit: 20 req per 15min"]
             
-            ProtectedRoutes["Protected Routes<br/>(/api/progress/*, /api/tests/*, /api/auth/me)"]
-            AuthMiddleware["authMiddleware (protect)<br/>(JWT Verification & Live User Lookup)"]
+            ProtectedRoutes["Protected Routes<br/>Progress, Tests, Auth Me"]
+            AuthMiddleware["authMiddleware protect<br/>JWT Verification and Live User Lookup"]
         end
         
-        ErrorHandler["Centralized Error Pipeline<br/>(errorMiddleware & notFound Handler)"]
+        ErrorHandler["Centralized Error Pipeline<br/>errorMiddleware and notFound Handler"]
     end
 
-    subgraph AppLogic ["3. Application Logic & Services"]
-        HealthCtrl["healthController.js<br/>(Liveness Probes)"]
-        AuthCtrl["authController.js<br/>(Bcrypt Hashing & Account Merging)"]
-        ProgressCtrl["progressController.js<br/>(Atomic Upserts & Subject Stats)"]
-        TestCtrl["testController.js<br/>(Pagination & Performance Analytics)"]
-        ScoringSvc["testScoring.js<br/>(Authoritative Evaluator & Sanitizer)"]
+    subgraph AppLogic ["3. Application Logic and Services"]
+        HealthCtrl["healthController.js<br/>Liveness Probes"]
+        AuthCtrl["authController.js<br/>Bcrypt Hashing and Account Merging"]
+        ProgressCtrl["progressController.js<br/>Atomic Upserts and Subject Stats"]
+        TestCtrl["testController.js<br/>Pagination and Performance Analytics"]
+        ScoringSvc["testScoring.js<br/>Authoritative Evaluator and Sanitizer"]
     end
 
-    subgraph CanonicalData ["4. Canonical Content (Single Source of Truth)"]
-        CanonicalTaxonomy["taxonomy.js<br/>(Canonical Subject/Chapter Enum)"]
-        AuthoritativeQB["questionBank.js<br/>(120 Curated Questions & Answer Keys)"]
+    subgraph CanonicalData ["4. Canonical Content - Single Source of Truth"]
+        CanonicalTaxonomy["taxonomy.js<br/>Canonical Subject and Chapter Enum"]
+        AuthoritativeQB["questionBank.js<br/>120 Curated Questions and Answer Keys"]
     end
 
-    subgraph Persistence ["5. Persistence & External Services"]
-        MongoDB[("MongoDB Atlas<br/>(users, progresses, testresults)")]
-        FirebaseAdmin["Firebase Admin SDK<br/>(Google ID Token Verification)"]
+    subgraph Persistence ["5. Persistence and External Services"]
+        MongoDB[("MongoDB Atlas<br/>users, progresses, testresults")]
+        FirebaseAdmin["Firebase Admin SDK<br/>Google ID Token Verification"]
     end
 
     %% Client to Gateway
     UI --> AuthScript
-    AuthScript -->|HTTP / REST Requests| GlobalSec
+    AuthScript -->|HTTP REST Requests| GlobalSec
     GlobalSec --> HealthRoute
     GlobalSec --> AuthRoute
     GlobalSec --> ProtectedRoutes
 
-    %% Gateway Routing & Middleware
-    HealthRoute -->|Public (No Auth)| HealthCtrl
+    %% Gateway Routing and Middleware
+    HealthRoute -->|Public - No Auth| HealthCtrl
     AuthRoute --> AuthLimiter
     AuthLimiter --> AuthCtrl
     ProtectedRoutes -->|Requires Bearer Token| AuthMiddleware
@@ -70,23 +70,23 @@ flowchart TD
     AuthMiddleware -->|Authenticated User| AuthCtrl
 
     %% Controller Integrations
-    AuthCtrl -->|Verify Google idToken| FirebaseAdmin
-    AuthCtrl -->|User Queries & Bcrypt Hashes| MongoDB
+    AuthCtrl -->|Verify Google ID Token| FirebaseAdmin
+    AuthCtrl -->|User Queries and Bcrypt Hashes| MongoDB
 
-    ProgressCtrl -->|Subject/Chapter Validation| CanonicalTaxonomy
+    ProgressCtrl -->|Subject and Chapter Validation| CanonicalTaxonomy
     ProgressCtrl -->|Atomic Progress Upserts| MongoDB
 
-    TestCtrl -->|Sanitized Questions & Evaluation| ScoringSvc
+    TestCtrl -->|Sanitized Questions and Evaluation| ScoringSvc
     TestCtrl -->|Compound-Indexed Queries| MongoDB
 
-    ScoringSvc -->|Read-Only (Strips Answer Keys)| AuthoritativeQB
+    ScoringSvc -->|Read-Only - Strips Answer Keys| AuthoritativeQB
     ScoringSvc -->|Server-Side Grading| AuthoritativeQB
 
-    %% Error Handling (Express Pipeline)
-    ExpressGateway -.->|Unhandled Errors & 404s| ErrorHandler
+    %% Error Handling - Express Pipeline
+    ExpressGateway -.->|Unhandled Errors and 404s| ErrorHandler
 
     %% Build-Time Contract Sync
-    CanonicalTaxonomy -.->|npm run build:taxonomy (Build-Time Sync)| TaxonomyCache
+    CanonicalTaxonomy -.->|Build-Time Sync - npm run build:taxonomy| TaxonomyCache
     TaxonomyCache -.->|Static Import| UI
 ```
 
@@ -110,33 +110,39 @@ sequenceDiagram
     autonumber
     actor User as Student
     participant Browser as Client (login.js / apiFetch)
-    participant Server as Express Server
+    participant RateLimiter as authLimiter
+    participant AuthCtrl as authController
     participant Firebase as Firebase Admin SDK
-    participant DB as MongoDB Atlas
+    participant DB as MongoDB
+    participant Protect as authMiddleware
 
     alt Local Authentication
-        User->>Browser: Enters Email & Password
-        Browser->>Server: POST /api/auth/login
-        Server->>DB: User.findOne({ email })
-        DB-->>Server: User record (with bcrypt hash)
-        Server->>Server: bcrypt.compare(password, hash)
-        Server-->>Browser: Signed JWT (7d expiry) + User profile
+        User->>Browser: Enters Email and Password
+        Browser->>RateLimiter: POST /api/auth/login
+        RateLimiter->>AuthCtrl: Allowed (under rate limit threshold)
+        AuthCtrl->>DB: User.findOne({ email })
+        DB-->>AuthCtrl: User record + stored password hash
+        AuthCtrl->>AuthCtrl: bcrypt.compare(password, storedHash)
+        AuthCtrl-->>Browser: Signed Application JWT (7d) + User profile
     else Google OAuth
         User->>Browser: Clicks "Continue with Google"
-        Browser->>Browser: Firebase Popup (Google Auth)
-        Browser->>Server: POST /api/auth/google { idToken }
-        Server->>Firebase: admin.auth().verifyIdToken(idToken)
-        Firebase-->>Server: Decoded token { email, uid, name }
-        Server->>DB: Find or Upsert User by normalized email
-        Server-->>Browser: Signed JWT (7d expiry) + User profile
+        Browser->>Browser: Firebase Web Popup (Google Auth)
+        Browser-->>Browser: Receives Google ID Token
+        Browser->>RateLimiter: POST /api/auth/google { idToken }
+        RateLimiter->>AuthCtrl: Allowed (under rate limit threshold)
+        AuthCtrl->>Firebase: admin.auth().verifyIdToken(idToken)
+        Firebase-->>AuthCtrl: Decoded Firebase identity (email, uid, name)
+        AuthCtrl->>DB: Find or Upsert User by normalized email
+        DB-->>AuthCtrl: User record
+        AuthCtrl-->>Browser: Signed Application JWT (7d) + User profile
     end
 
-    Note over Browser,Server: Subsequent Protected API Requests
-    Browser->>Server: GET /api/tests/dashboard (Authorization: Bearer <JWT>)
-    Server->>Server: authMiddleware (jwt.verify)
-    Server->>DB: User.findById(decoded.id).select('-password')
-    DB-->>Server: Live user document
-    Server-->>Browser: Requested Protected Data
+    Note over Browser,Protect: Subsequent Protected API Requests
+    Browser->>Protect: GET /api/tests/dashboard (Authorization: Bearer <JWT>)
+    Protect->>Protect: jwt.verify(token, JWT_SECRET)
+    Protect->>DB: User.findById(decoded.id).select('-password')
+    DB-->>Protect: Live user document
+    Protect-->>Browser: Authorized - Return protected dataset
 ```
 
 ---
@@ -376,15 +382,8 @@ Open `http://localhost:3000` in your browser.
 
 ---
 
-## Screenshots & Visuals
-
-> [!NOTE]
-> Screenshots and interactive UI recordings can be placed in an `assets/` directory to visually demonstrate the dashboard analytics, timed quiz interface, and responsive study panels.
-
----
-
 ## Future Roadmap
 
-* **Mathematical Formula Rendering**: Integration of KaTeX / MathJax for rendering complex LaTeX mathematical notations and chemical reaction formulas.
-* **HTTP-Only Cookie Session Option**: Supporting dual-mode authorization (Bearer token header for API clients, HTTP-only secure cookie for web browser sessions).
-* **Comprehensive Full-Length Mock Exams**: 3-hour composite examination mode combining Physics, Chemistry, and Mathematics with JEE-standard negative marking schemes.
+* **Mathematical Formula & Notation Rendering**: Integration of math/chemistry typesetting (such as KaTeX or MathJax) to render complex algebraic notation, calculus expressions, and chemical reactions natively within chapter study modules and quiz questions.
+* **HTTP-Only Cookie Session Strategy**: An optional architectural enhancement to support HTTP-only secure cookie delivery alongside the existing Bearer token model, providing an alternative browser-session strategy if required by future deployment topologies.
+* **Full-Length Composite JEE Mock Exams**: A multi-subject examination mode simulating the full 3-hour JEE format across Physics, Chemistry, and Mathematics, complete with section-level time management and standard JEE negative marking evaluation.
