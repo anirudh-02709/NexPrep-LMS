@@ -28,6 +28,9 @@ if (!admin.apps.length && hasFirebaseConfig) {
         privateKey: firebasePrivateKey,
       }),
     });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Firebase Admin] Initialized successfully.');
+    }
   } catch (error) {
     console.error('[Firebase Admin] Initialization failed:', error.message);
   }
