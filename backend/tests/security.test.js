@@ -4,7 +4,6 @@ const express = require('express');
 const dns = require('dns');
 
 const { authLimiter } = require('../middleware/rateLimitMiddleware');
-const app = require('../server');
 
 describe('Security, Helmet & Rate Limiting Suite', () => {
 

@@ -73,7 +73,7 @@ app.use('/api/progress', progressRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-if (process.env.NODE_ENV !== 'test') {
+if (require.main === module && process.env.NODE_ENV !== 'test') {
   connectDB().then(() => {
     app.listen(PORT, () => {
       console.log(`NexPrep backend server running on port ${PORT}`);

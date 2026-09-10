@@ -67,27 +67,6 @@ function updateRecentActivity() {
   }
 }
 
-function calculateStreak(results) {
-  const uniqueDays = [...new Set(results
-    .map((result) => new Date(result.createdAt))
-    .filter((date) => !Number.isNaN(date.getTime()))
-    .map((date) => date.toISOString().slice(0, 10)))].sort().reverse();
-
-  if (!uniqueDays.length) return 0;
-
-  let streak = 0;
-  const cursor = new Date();
-  cursor.setHours(0, 0, 0, 0);
-
-  for (const day of uniqueDays) {
-    const expected = cursor.toISOString().slice(0, 10);
-    if (day !== expected) break;
-    streak++;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-
-  return streak;
-}
 
 async function loadContinueLearning() {
   const sectionEl = document.getElementById('continue-learning-section');
@@ -170,9 +149,15 @@ async function loadTestStats() {
     const dashboard = data.dashboard || {};
     setText('home-tests-attempted', dashboard.totalTests || 0);
 
+    const streakCount = typeof dashboard.currentStreak !== 'undefined'
+      ? dashboard.currentStreak
+      : (typeof dashboard.streak !== 'undefined' ? dashboard.streak : 0);
+    setText('home-current-streak', `${streakCount} days`);
+
     updateRecentActivity();
   } catch (error) {
     setText('home-tests-attempted', '--');
+    setText('home-current-streak', '--');
   }
 }
 
@@ -185,15 +170,13 @@ async function loadRecentHistory() {
     }
 
     const results = data.results || [];
-    setText('home-current-streak', `${calculateStreak(results)} days`);
-
-    if (results.length) {
+    if (results.length && !homeState.latestTest) {
       homeState.latestTest = results[0];
     }
 
     updateRecentActivity();
   } catch (error) {
-    setText('home-current-streak', '--');
+    // Non-critical, recent activity fallback
   }
 }
 

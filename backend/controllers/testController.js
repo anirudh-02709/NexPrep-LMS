@@ -1,5 +1,6 @@
 const TestResult = require('../models/TestResult');
 const { getSanitizedQuestions, validateAndScoreSubmission } = require('../services/testScoring');
+const { calculateStreak } = require('../services/streakService');
 
 const getTestQuestions = async (req, res, next) => {
   try {
@@ -190,6 +191,8 @@ const getDashboard = async (req, res, next) => {
       recommendation
     };
 
+    const currentStreak = calculateStreak(results);
+
     return res.status(200).json({
       success: true,
       dashboard: {
@@ -197,7 +200,9 @@ const getDashboard = async (req, res, next) => {
         averageScorePercentage,
         latestTest: results[0] || null,
         subjectWiseTestCounts,
-        insights
+        insights,
+        currentStreak,
+        streak: currentStreak,
       },
     });
   } catch (error) {
