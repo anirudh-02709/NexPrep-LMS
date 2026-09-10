@@ -17,8 +17,8 @@
     X-Content-Type-Options = "nosniff"
     # Enable XSS protection in older browsers
     X-XSS-Protection = "1; mode=block"
-    # Allow cross-origin requests to Render backend
-    Access-Control-Allow-Origin = "*"
+    # Restrict cross-origin access to the production frontend origin
+    Access-Control-Allow-Origin = "https://precious-griffin-831939.netlify.app"
     Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type, Authorization"
 
