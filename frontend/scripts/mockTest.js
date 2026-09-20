@@ -479,6 +479,11 @@ function renderExamScreen() {
           <div class="dot-indicator ${screenDotClass}"></div>
           <span>${screenText}</span>
         </div>
+        ${typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('proc_debug') === '1' ? `
+        <div class="telemetry-item" title="Temporal Correlation Engine (?proc_debug=1)">
+          <div class="dot-indicator dot-active"></div>
+          <span>Temporal: Ready</span>
+        </div>` : ''}
       </div>
 
       <div style="display:flex; align-items:center; gap:16px;">

@@ -2,8 +2,8 @@
 
 [![NexPrep Backend CI](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml/badge.svg)](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml)
 ![Node Version](https://img.shields.io/badge/node-20.x%20%7C%2022.x-brightgreen)
-![Tests](https://img.shields.io/badge/tests-109%20passing-success)
-![Suites](https://img.shields.io/badge/suites-12%20passed-blue)
+![Tests](https://img.shields.io/badge/tests-134%20passing-success)
+![Suites](https://img.shields.io/badge/suites-13%20passed-blue)
 ![License](https://img.shields.io/badge/license-ISC-blue)
 
 NexPrep is a full-stack Learning Management System (LMS) engineered for students preparing for the Joint Entrance Examination (JEE). The platform delivers structured chapter-wise concept modules across Physics, Chemistry, and Mathematics, server-authoritative timed test assessments, persistent chapter progress telemetry with continue-learning resumption, timezone-independent consecutive practice streaks, and rule-based performance analytics.
@@ -31,6 +31,7 @@ The application couples a static, lightweight multi-page frontend hosted on Netl
 * **Foundational Exam Proctoring & Telemetry Infrastructure**: Includes an environment proctoring subsystem (`ProctoringSession`, `ProctoringEvent`, `/api/mock-tests/:sessionId/proctoring/*`) designed to establish client readiness verification (camera, microphone, screen-sharing, fullscreen support) and capture server-authoritative browser telemetry (debounced focus lost/regained episodes, page visibility changes, fullscreen transitions, and media track termination). All events are immutable with server-assigned timestamps.
 * **Client-Side Webcam Computer Vision (Phase 3)**: Introduces on-device browser computer vision via `@mediapipe/tasks-vision` Face Landmarker. Strictly processes video frames locally without uploading raw media or making cloud vision API calls. Emits objective telemetry observations (`FACE_PRESENT`, `FACE_ABSENT`, `MULTIPLE_FACES`, `HEAD_POSE_DEVIATION`) stabilized by a pure, DOM-independent observation state machine with configurable temporal hysteresis. Contains zero subjective cheating judgments or suspicion scores.
 * **Client-Side Screen Monitoring & Intelligence (Phase 4)**: Captures user-selected display surfaces via `getDisplayMedia` and samples frames locally onto an in-memory 64×48 canvas without uploading raw images or video blobs. Computes deterministic multi-region spatial luminance and chromatic distributions to assess visual resemblance to the expected exam UI. Emits objective telemetry events (`SCREEN_SURFACE_IDENTIFIED`, `SCREEN_VIEW_STABLE`, `SCREEN_VIEW_CHANGED`, `SCREEN_VIEW_UNAVAILABLE`) governed by a DOM-independent temporal stabilization state machine with 1500ms hysteresis. Zero cheating scores, suspicion probabilities, or external AI inference.
+* **Event Correlation & Temporal Analysis Engine (Phase 5)**: Transforms raw, independent proctoring observations (browser telemetry, webcam CV, screen monitoring) into bounded temporal episodes and explicit pairwise observable relationships using a configurable 3000ms window. Features deterministic event categorization, bounded cluster growth (preventing infinite chaining), and authoritative answer-interaction context linkage (`answerInteractionContext`). Exposes an idempotent correlation API (`GET /api/mock-tests/:sessionId/proctoring/correlations`) while maintaining zero suspicion scores, cheating probabilities, or intent inference.
 * **Granular Progress Telemetry & Resumption**: Chapter access and completion states are stored via atomic upsert operations (`$set`, `$setOnInsert`) on compound-unique indexed records (`{ user: 1, subject: 1, chapter: 1 }`). A dedicated continue-learning endpoint allows students to instantly resume their most recently studied module.
 * **Timezone-Independent Consecutive Practice Streaks**: An authoritative streak service calculates active daily practice streaks in UTC calendar days, providing deterministic streak evaluation across clients. The algorithm deduplicates multiple tests taken on the same calendar day, preserves the active streak if the user practiced yesterday but has not yet practiced today, and resets to 0 if both days are missed or if calendar gaps occur.
 * **Rule-Based Performance Analytics**: The dashboard computes overall score averages, subject-level performance percentages, detects strongest and weakest subject areas (triggering targeted study recommendations when averages fall below 60%), tracks 7-day consistency activity, and detects score trends across attempts.
@@ -544,6 +545,7 @@ NexPrep-LMS/
 │   ├── models/
 │   │   ├── MockTest.js            # JEE mock test schema & answer key store
 │   │   ├── MockTestSession.js     # Active attempt session state & timer
+│   │   ├── ProctoringEpisode.js   # Derived temporal correlation episode schema
 │   │   ├── ProctoringEvent.js     # Append-only proctoring telemetry schema
 │   │   ├── ProctoringSession.js   # Proctoring session lifecycle & status
 │   │   ├── Progress.js            # Progress schema with compound unique index
@@ -559,6 +561,7 @@ NexPrep-LMS/
 │   │   └── buildTaxonomy.js       # Build script compiling backend taxonomy to frontend
 │   ├── services/
 │   │   ├── streakService.js       # Authoritative UTC streak calculation
+│   │   ├── temporalCorrelationService.js # Deterministic episode correlation engine
 │   │   └── testScoring.js         # Question sanitization & test evaluation
 │   ├── tests/
 │   │   ├── auth.test.js           # Authentication & JWT protection tests (8 tests)
@@ -572,6 +575,7 @@ NexPrep-LMS/
 │   │   ├── security.test.js       # Helmet, rate limiting & DNS tests (4 tests)
 │   │   ├── streak.test.js         # Practice streak calculation tests (9 tests)
 │   │   ├── taxonomy.test.js       # Canonical taxonomy tests (6 tests)
+│   │   ├── temporal_correlation.test.js # Event correlation & episode tests (25 tests)
 │   │   └── validation.test.js     # Taxonomy & input validation tests (12 tests)
 │   ├── .env.example               # Template for environment variables
 │   ├── package.json               # Backend dependencies & npm scripts

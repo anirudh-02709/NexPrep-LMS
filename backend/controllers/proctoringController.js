@@ -495,10 +495,53 @@ const getProctoringTimeline = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/mock-tests/:sessionId/proctoring/correlations
+ * Retrieves deterministically correlated temporal episodes and observable relationships.
+ * Idempotently synchronizes ProctoringEpisode storage.
+ */
+const getProctoringCorrelations = async (req, res, next) => {
+  try {
+    const { sessionId } = req.params;
+
+    const mockSession = await MockTestSession.findById(sessionId);
+    if (!mockSession) {
+      res.status(404);
+      throw new Error('Mock test session not found.');
+    }
+
+    if (mockSession.user.toString() !== req.user.id.toString()) {
+      res.status(403);
+      throw new Error('Not authorized to access this exam session.');
+    }
+
+    const procSession = await ProctoringSession.findOne({ mockTestSession: mockSession._id });
+    if (!procSession) {
+      res.status(404);
+      throw new Error('Associated proctoring session not found.');
+    }
+
+    const { syncSessionEpisodes } = require('../services/temporalCorrelationService');
+    const { episodes, totalEpisodes } = await syncSessionEpisodes(mockSession._id);
+
+    return res.status(200).json({
+      success: true,
+      sessionId: mockSession._id,
+      proctoringSessionId: procSession._id,
+      totalEpisodes,
+      episodes,
+    });
+  } catch (error) {
+    if (error.statusCode) res.status(error.statusCode);
+    return next(error);
+  }
+};
+
 module.exports = {
   startProctoring,
   recordProctoringEvent,
   proctoringHeartbeat,
   stopProctoring,
   getProctoringTimeline,
+  getProctoringCorrelations,
 };
