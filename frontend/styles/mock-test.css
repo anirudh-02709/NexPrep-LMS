@@ -1061,4 +1061,24 @@
   pointer-events: none;
 }
 
+/* ─── Phase 4: Diagnostic Screen HUD (?screen_debug=1) ─── */
+.screen-debug-hud {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  width: 250px;
+  background: rgba(10, 15, 28, 0.94);
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-family: 'SF Mono', Menlo, Consolas, Monaco, monospace;
+  font-size: 0.78rem;
+  color: #e2e8f0;
+  line-height: 1.6;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  z-index: 99999;
+  pointer-events: none;
+}
+
 

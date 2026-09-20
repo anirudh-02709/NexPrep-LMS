@@ -16,9 +16,13 @@ const ALLOWED_EVENT_TYPES = Object.freeze([
   'MICROPHONE_STARTED',
   'MICROPHONE_STOPPED',
 
-  // Screen share state
+  // Screen share state & intelligence (Phase 2 & Phase 4)
   'SCREEN_SHARE_STARTED',
   'SCREEN_SHARE_STOPPED',
+  'SCREEN_SURFACE_IDENTIFIED',
+  'SCREEN_VIEW_STABLE',
+  'SCREEN_VIEW_CHANGED',
+  'SCREEN_VIEW_UNAVAILABLE',
 
   // Computer vision observations (Phase 3)
   'FACE_PRESENT',

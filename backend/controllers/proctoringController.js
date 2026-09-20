@@ -14,7 +14,7 @@ function sanitizeState(value, allowedValues, fallback = 'inactive') {
 
 /**
  * Validates metadata object, rejecting payloads exceeding 4 KB, non-objects,
- * or raw image/binary data URLs.
+ * raw image/binary data URLs, forbidden media payload keys, or malformed values.
  */
 function validateMetadata(metadata, res) {
   if (metadata === undefined || metadata === null) {
@@ -24,6 +24,16 @@ function validateMetadata(metadata, res) {
     res.status(400);
     throw new Error('Event metadata must be an object.');
   }
+
+  // Strictly forbid raw media keys
+  const forbiddenKeys = ['screenshot', 'image', 'frame', 'video', 'blob', 'rawframe', 'dataurl'];
+  for (const key of Object.keys(metadata)) {
+    if (forbiddenKeys.includes(key.toLowerCase())) {
+      res.status(400);
+      throw new Error('Image and binary payloads are not permitted in event metadata.');
+    }
+  }
+
   let metadataStr;
   try {
     metadataStr = JSON.stringify(metadata);
@@ -39,6 +49,58 @@ function validateMetadata(metadata, res) {
     res.status(400);
     throw new Error('Image and binary payloads are not permitted in event metadata.');
   }
+
+  // Validate known screen metadata fields if present
+  if (metadata.displaySurface !== undefined) {
+    const allowedSurfaces = ['browser', 'window', 'monitor', 'unknown'];
+    if (typeof metadata.displaySurface !== 'string' || !allowedSurfaces.includes(metadata.displaySurface.toLowerCase())) {
+      res.status(400);
+      throw new Error(`Invalid displaySurface: '${metadata.displaySurface}'. Allowed values: ${allowedSurfaces.join(', ')}.`);
+    }
+  }
+
+  if (metadata.width !== undefined) {
+    if (typeof metadata.width !== 'number' || !Number.isFinite(metadata.width) || metadata.width < 0) {
+      res.status(400);
+      throw new Error('Metadata property "width" must be a non-negative number.');
+    }
+  }
+
+  if (metadata.height !== undefined) {
+    if (typeof metadata.height !== 'number' || !Number.isFinite(metadata.height) || metadata.height < 0) {
+      res.status(400);
+      throw new Error('Metadata property "height" must be a non-negative number.');
+    }
+  }
+
+  if (metadata.frameRate !== undefined) {
+    if (typeof metadata.frameRate !== 'number' || !Number.isFinite(metadata.frameRate) || metadata.frameRate < 0) {
+      res.status(400);
+      throw new Error('Metadata property "frameRate" must be a non-negative number.');
+    }
+  }
+
+  if (metadata.similarity !== undefined) {
+    if (typeof metadata.similarity !== 'number' || !Number.isFinite(metadata.similarity) || metadata.similarity < 0 || metadata.similarity > 1) {
+      res.status(400);
+      throw new Error('Metadata property "similarity" must be a number between 0 and 1.');
+    }
+  }
+
+  if (metadata.classification !== undefined) {
+    if (typeof metadata.classification !== 'string' || metadata.classification.trim().length === 0) {
+      res.status(400);
+      throw new Error('Metadata property "classification" must be a non-empty string.');
+    }
+  }
+
+  if (metadata.analysisVersion !== undefined) {
+    if (typeof metadata.analysisVersion !== 'string' || metadata.analysisVersion.trim().length === 0) {
+      res.status(400);
+      throw new Error('Metadata property "analysisVersion" must be a non-empty string.');
+    }
+  }
+
   return metadata;
 }
 

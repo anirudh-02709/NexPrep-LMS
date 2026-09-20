@@ -2,8 +2,8 @@
 
 [![NexPrep Backend CI](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml/badge.svg)](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml)
 ![Node Version](https://img.shields.io/badge/node-20.x%20%7C%2022.x-brightgreen)
-![Tests](https://img.shields.io/badge/tests-99%20passing-success)
-![Suites](https://img.shields.io/badge/suites-11%20passed-blue)
+![Tests](https://img.shields.io/badge/tests-109%20passing-success)
+![Suites](https://img.shields.io/badge/suites-12%20passed-blue)
 ![License](https://img.shields.io/badge/license-ISC-blue)
 
 NexPrep is a full-stack Learning Management System (LMS) engineered for students preparing for the Joint Entrance Examination (JEE). The platform delivers structured chapter-wise concept modules across Physics, Chemistry, and Mathematics, server-authoritative timed test assessments, persistent chapter progress telemetry with continue-learning resumption, timezone-independent consecutive practice streaks, and rule-based performance analytics.
@@ -30,6 +30,7 @@ The application couples a static, lightweight multi-page frontend hosted on Netl
 * **JEE Main Mock Test Subsystem**: Alongside existing chapter-wise practice tests, NexPrep includes a separate JEE Main Mock Test subsystem (`/api/mock-tests/*`, `MockTest`, `MockTestSession`, and `mock-test.html`). It features multi-section navigation across Physics, Chemistry, and Mathematics, server-authoritative countdown timing, +4 / -1 / 0 marking scheme, resilient attempt restoration upon browser refresh, and comprehensive post-exam analytics.
 * **Foundational Exam Proctoring & Telemetry Infrastructure**: Includes an environment proctoring subsystem (`ProctoringSession`, `ProctoringEvent`, `/api/mock-tests/:sessionId/proctoring/*`) designed to establish client readiness verification (camera, microphone, screen-sharing, fullscreen support) and capture server-authoritative browser telemetry (debounced focus lost/regained episodes, page visibility changes, fullscreen transitions, and media track termination). All events are immutable with server-assigned timestamps.
 * **Client-Side Webcam Computer Vision (Phase 3)**: Introduces on-device browser computer vision via `@mediapipe/tasks-vision` Face Landmarker. Strictly processes video frames locally without uploading raw media or making cloud vision API calls. Emits objective telemetry observations (`FACE_PRESENT`, `FACE_ABSENT`, `MULTIPLE_FACES`, `HEAD_POSE_DEVIATION`) stabilized by a pure, DOM-independent observation state machine with configurable temporal hysteresis. Contains zero subjective cheating judgments or suspicion scores.
+* **Client-Side Screen Monitoring & Intelligence (Phase 4)**: Captures user-selected display surfaces via `getDisplayMedia` and samples frames locally onto an in-memory 64×48 canvas without uploading raw images or video blobs. Computes deterministic multi-region spatial luminance and chromatic distributions to assess visual resemblance to the expected exam UI. Emits objective telemetry events (`SCREEN_SURFACE_IDENTIFIED`, `SCREEN_VIEW_STABLE`, `SCREEN_VIEW_CHANGED`, `SCREEN_VIEW_UNAVAILABLE`) governed by a DOM-independent temporal stabilization state machine with 1500ms hysteresis. Zero cheating scores, suspicion probabilities, or external AI inference.
 * **Granular Progress Telemetry & Resumption**: Chapter access and completion states are stored via atomic upsert operations (`$set`, `$setOnInsert`) on compound-unique indexed records (`{ user: 1, subject: 1, chapter: 1 }`). A dedicated continue-learning endpoint allows students to instantly resume their most recently studied module.
 * **Timezone-Independent Consecutive Practice Streaks**: An authoritative streak service calculates active daily practice streaks in UTC calendar days, providing deterministic streak evaluation across clients. The algorithm deduplicates multiple tests taken on the same calendar day, preserves the active streak if the user practiced yesterday but has not yet practiced today, and resets to 0 if both days are missed or if calendar gaps occur.
 * **Rule-Based Performance Analytics**: The dashboard computes overall score averages, subject-level performance percentages, detects strongest and weakest subject areas (triggering targeted study recommendations when averages fall below 60%), tracks 7-day consistency activity, and detects score trends across attempts.
@@ -529,6 +530,8 @@ NexPrep-LMS/
 │   ├── controllers/
 │   │   ├── authController.js      # Register, login, googleLogin, getMe
 │   │   ├── healthController.js    # Health check & root probe handlers
+│   │   ├── mockTestController.js  # JEE mock test session lifecycle & scoring
+│   │   ├── proctoringController.js # Proctoring session lifecycle & telemetry
 │   │   ├── progressController.js  # Progress updates, stats & continue learning
 │   │   └── testController.js      # Questions, grading, history & dashboard
 │   ├── data/
@@ -539,12 +542,17 @@ NexPrep-LMS/
 │   │   ├── errorMiddleware.js     # Centralized 404 & error handlers
 │   │   └── rateLimitMiddleware.js # express-rate-limit configuration
 │   ├── models/
+│   │   ├── MockTest.js            # JEE mock test schema & answer key store
+│   │   ├── MockTestSession.js     # Active attempt session state & timer
+│   │   ├── ProctoringEvent.js     # Append-only proctoring telemetry schema
+│   │   ├── ProctoringSession.js   # Proctoring session lifecycle & status
 │   │   ├── Progress.js            # Progress schema with compound unique index
 │   │   ├── TestResult.js          # TestResult schema with compound date index
 │   │   └── User.js                # User schema with bcrypt & email normalization
 │   ├── routes/
 │   │   ├── authRoutes.js          # /api/auth endpoints
 │   │   ├── healthRoutes.js        # / and /api/health endpoints
+│   │   ├── mockTestRoutes.js      # /api/mock-tests endpoints
 │   │   ├── progressRoutes.js      # /api/progress endpoints
 │   │   └── testRoutes.js          # /api/tests endpoints
 │   ├── scripts/
@@ -558,8 +566,9 @@ NexPrep-LMS/
 │   │   ├── errorHandling.test.js  # Error handling & middleware tests (5 tests)
 │   │   ├── indexingPagination.test.js # Indexing & pagination tests (5 tests)
 │   │   ├── mockTest.test.js       # JEE mock test scoring & lifecycle tests (15 tests)
-│   │   ├── proctoring.test.js     # Foundational proctoring & telemetry tests (15 tests)
+│   │   ├── proctoring.test.js     # Foundational proctoring & telemetry tests (19 tests)
 │   │   ├── scoring.test.js        # Server-authoritative scoring tests (12 tests)
+│   │   ├── screen_observation.test.js # Screen monitoring state machine tests (6 tests)
 │   │   ├── security.test.js       # Helmet, rate limiting & DNS tests (4 tests)
 │   │   ├── streak.test.js         # Practice streak calculation tests (9 tests)
 │   │   ├── taxonomy.test.js       # Canonical taxonomy tests (6 tests)
@@ -570,8 +579,10 @@ NexPrep-LMS/
 ├── frontend/
 │   ├── scripts/
 │   │   ├── proctoring/
-│   │   │   ├── observationState.js # Pure DOM-independent CV stabilization state machine
-│   │   │   └── webcamCv.js        # Client-side MediaPipe Face Landmarker CV analyzer
+│   │   │   ├── observationState.js       # Pure DOM-independent CV stabilization state machine
+│   │   │   ├── screenMonitor.js          # Client-side screen capture & feature analyzer
+│   │   │   ├── screenObservationState.js # Pure DOM-independent screen state machine
+│   │   │   └── webcamCv.js               # Client-side MediaPipe Face Landmarker CV analyzer
 │   │   ├── auth.js                # Token management & authenticated fetch client
 │   │   ├── authGuard.js           # Route protection script for client views
 │   │   ├── chapter.js             # Chapter reading & completion toggle controller
@@ -598,6 +609,7 @@ NexPrep-LMS/
 │   ├── home.html                  # Main landing view with continue learning
 │   ├── index.html                 # Platform entrance view
 │   ├── maths.html                 # Mathematics chapter grid view
+│   ├── mock-test.html             # JEE mock test & proctored assessment view
 │   ├── physics.html               # Physics chapter grid view
 │   ├── profile.html               # User account profile view
 │   ├── register.html              # Registration view

@@ -52,6 +52,10 @@ const mockState = {
   // ─── Phase 3: Webcam Computer Vision State ───
   cvAnalyzer: null,
   cvStatus: 'off', // 'off' | 'initializing' | 'active' | 'unavailable' | 'stopped'
+
+  // ─── Phase 4: Screen Monitoring & Intelligence State ───
+  screenMonitor: null,
+  screenAiStatus: 'off', // 'off' | 'initializing' | 'active' | 'unavailable' | 'stopped'
 };
 
 function attachExamWebcamVideo() {
@@ -424,6 +428,19 @@ function renderExamScreen() {
     cvText = 'CV: Unavailable';
   }
 
+  let screenDotClass = 'dot-inactive';
+  let screenText = 'Screen AI: Off';
+  if (mockState.screenAiStatus === 'active') {
+    screenDotClass = 'dot-active';
+    screenText = 'Screen AI: Active';
+  } else if (mockState.screenAiStatus === 'initializing') {
+    screenDotClass = 'dot-warning';
+    screenText = 'Screen AI: Init';
+  } else if (mockState.screenAiStatus === 'unavailable') {
+    screenDotClass = 'dot-unavailable';
+    screenText = 'Screen AI: Unavailable';
+  }
+
   return `
     <div class="exam-topbar">
       <div>
@@ -457,6 +474,10 @@ function renderExamScreen() {
         <div class="telemetry-item" title="Computer Vision Status: ${mockState.cvStatus}">
           <div class="dot-indicator ${cvDotClass}"></div>
           <span>${cvText}</span>
+        </div>
+        <div class="telemetry-item" title="Screen Intelligence Status: ${mockState.screenAiStatus}">
+          <div class="dot-indicator ${screenDotClass}"></div>
+          <span>${screenText}</span>
         </div>
       </div>
 
@@ -962,6 +983,9 @@ async function startExamWithProctoring(testIdOrSlug) {
 
     // 7. Start Webcam Computer Vision Pipeline (Phase 3)
     startWebcamCvPipeline();
+
+    // 8. Start Screen Capture Monitoring Pipeline (Phase 4)
+    startScreenMonitoringPipeline();
   } catch (error) {
     mockState.loading = false;
     alert('Network error: unable to start proctored mock test.');
@@ -1003,6 +1027,41 @@ async function startWebcamCvPipeline() {
     await mockState.cvAnalyzer.start(examVideoEl);
   } else {
     mockState.cvStatus = 'unavailable';
+    updateTopbarTelemetryUI();
+  }
+}
+
+async function startScreenMonitoringPipeline() {
+  if (!mockState.screenStream) {
+    mockState.screenAiStatus = 'unavailable';
+    updateTopbarTelemetryUI();
+    return;
+  }
+
+  if (mockState.screenMonitor) {
+    mockState.screenMonitor.stop();
+  }
+
+  if (window.ScreenMonitor && window.ScreenMonitor.createScreenMonitor) {
+    mockState.screenMonitor = window.ScreenMonitor.createScreenMonitor({
+      onObservation: (observation) => {
+        // Forward stabilized observation to server-authoritative telemetry endpoint
+        sendProctoringEvent(
+          observation.type,
+          observation.source || 'screen',
+          observation.duration || 0,
+          observation.metadata || {}
+        );
+      },
+      onStatusChange: ({ status }) => {
+        mockState.screenAiStatus = status;
+        updateTopbarTelemetryUI();
+      },
+    });
+
+    await mockState.screenMonitor.start(mockState.screenStream);
+  } else {
+    mockState.screenAiStatus = 'unavailable';
     updateTopbarTelemetryUI();
   }
 }
@@ -1116,6 +1175,19 @@ function updateTopbarTelemetryUI() {
     cvText = 'CV: Unavailable';
   }
 
+  let screenDotClass = 'dot-inactive';
+  let screenText = 'Screen AI: Off';
+  if (mockState.screenAiStatus === 'active') {
+    screenDotClass = 'dot-active';
+    screenText = 'Screen AI: Active';
+  } else if (mockState.screenAiStatus === 'initializing') {
+    screenDotClass = 'dot-warning';
+    screenText = 'Screen AI: Init';
+  } else if (mockState.screenAiStatus === 'unavailable') {
+    screenDotClass = 'dot-unavailable';
+    screenText = 'Screen AI: Unavailable';
+  }
+
   pill.innerHTML = `
     <span style="color:var(--muted); font-size:0.75rem; text-transform:uppercase;">Proctoring</span>
     <div class="telemetry-item" title="Webcam Stream State">
@@ -1138,6 +1210,10 @@ function updateTopbarTelemetryUI() {
       <div class="dot-indicator ${cvDotClass}"></div>
       <span>${cvText}</span>
     </div>
+    <div class="telemetry-item" title="Screen Intelligence Status: ${mockState.screenAiStatus}">
+      <div class="dot-indicator ${screenDotClass}"></div>
+      <span>${screenText}</span>
+    </div>
   `;
 }
 
@@ -1151,6 +1227,12 @@ function teardownMediaAndTelemetry() {
     mockState.cvAnalyzer = null;
   }
   mockState.cvStatus = 'off';
+
+  if (mockState.screenMonitor) {
+    mockState.screenMonitor.stop();
+    mockState.screenMonitor = null;
+  }
+  mockState.screenAiStatus = 'off';
 
   if (mockState.cameraStream) {
     mockState.cameraStream.getTracks().forEach((track) => track.stop());
@@ -1357,7 +1439,15 @@ async function confirmSubmit() {
     mockState.cvAnalyzer = null;
   }
 
-  // 2. Stop Proctoring Session
+  // 2. Stop Screen Monitoring Pipeline (flushes/closes any active change episodes)
+  if (mockState.screenMonitor) {
+    try {
+      mockState.screenMonitor.stop();
+    } catch (e) {}
+    mockState.screenMonitor = null;
+  }
+
+  // 3. Stop Proctoring Session
   try {
     await apiFetch(`/api/mock-tests/${mockState.sessionId}/proctoring/stop`, {
       method: 'POST',

@@ -778,4 +778,193 @@ describe('Foundational Proctoring Telemetry Suite (Phase 2)', () => {
     }
   });
 
+  // ─── 16. Phase 4 Screen Events & Source Acceptance ────────────
+  it('16. recordProctoringEvent accepts Phase 4 screen events and preserves SCREEN_SHARE_STARTED/STOPPED', async () => {
+    const mockSession = {
+      _id: 'mock_sess_screen',
+      user: 'user_screen',
+      status: 'in_progress',
+      expiresAt: new Date(Date.now() + 3600000),
+    };
+    const procSession = {
+      _id: 'proc_sess_screen',
+      mockTestSession: 'mock_sess_screen',
+      user: 'user_screen',
+      status: 'active',
+      lastHeartbeatAt: new Date(),
+      save: async () => {},
+    };
+
+    const originalMockFindById = MockTestSession.findById;
+    const originalProcFindOne = ProctoringSession.findOne;
+    const originalEventCreate = ProctoringEvent.create;
+
+    MockTestSession.findById = async () => mockSession;
+    ProctoringSession.findOne = async () => procSession;
+
+    const screenTypes = [
+      'SCREEN_SHARE_STARTED',
+      'SCREEN_SHARE_STOPPED',
+      'SCREEN_SURFACE_IDENTIFIED',
+      'SCREEN_VIEW_STABLE',
+      'SCREEN_VIEW_CHANGED',
+      'SCREEN_VIEW_UNAVAILABLE',
+    ];
+
+    try {
+      for (const sType of screenTypes) {
+        let loggedEvent = null;
+        ProctoringEvent.create = async (doc) => {
+          loggedEvent = { _id: 'ev_' + sType, ...doc };
+          return loggedEvent;
+        };
+
+        let respStatus = null;
+        let respBody = null;
+        const req = {
+          user: { id: 'user_screen' },
+          params: { sessionId: 'mock_sess_screen' },
+          body: {
+            type: sType,
+            source: 'screen',
+            duration: 1500,
+            metadata: {
+              displaySurface: 'browser',
+              width: 1920,
+              height: 1080,
+              frameRate: 30,
+              similarity: 0.95,
+              classification: 'EXPECTED_EXAM_VIEW',
+              analysisVersion: 'phase4-v1',
+            },
+          },
+        };
+        const res = {
+          status: (c) => { respStatus = c; return res; },
+          json: (b) => { respBody = b; return res; },
+        };
+
+        await recordProctoringEvent(req, res, () => {});
+
+        assert.equal(respStatus, 201);
+        assert.equal(respBody.event.type, sType);
+        assert.equal(respBody.event.source, 'screen');
+        assert.equal(loggedEvent.type, sType);
+        assert.equal(loggedEvent.source, 'screen');
+      }
+    } finally {
+      MockTestSession.findById = originalMockFindById;
+      ProctoringSession.findOne = originalProcFindOne;
+      ProctoringEvent.create = originalEventCreate;
+    }
+  });
+
+  // ─── 17. Rejection of Prohibited AI / Screen Event Types ──────
+  it('17. recordProctoringEvent rejects prohibited/AI screen event types with 400 Bad Request', async () => {
+    const forbiddenTypes = [
+      'SCREENSHOT_UPLOADED',
+      'OTHER_APP_DETECTED',
+      'CHEATING_SCREEN',
+      'SUSPICIOUS_SCREEN',
+      'CHEATING_WINDOW',
+    ];
+
+    for (const badType of forbiddenTypes) {
+      assert.equal(ALLOWED_EVENT_TYPES.includes(badType), false, `${badType} must NOT be allowed`);
+
+      let statusCode = null;
+      let errorThrown = null;
+      const req = {
+        params: { sessionId: 'any_session' },
+        body: { type: badType },
+      };
+      const res = {
+        status: (code) => { statusCode = code; return res; },
+      };
+
+      await recordProctoringEvent(req, res, (err) => {
+        errorThrown = err;
+      });
+
+      assert.equal(statusCode, 400);
+      assert.match(errorThrown.message, /invalid proctoring event type/i);
+    }
+  });
+
+  // ─── 18. Rejection of Malformed Screen Metadata ───────────────
+  it('18. recordProctoringEvent rejects malformed screen metadata properties with 400 Bad Request', async () => {
+    const invalidMetas = [
+      { displaySurface: 'unsupported_desktop_os' }, // invalid surface
+      { width: -100 }, // negative width
+      { height: 'not_a_number' }, // non-numeric height
+      { frameRate: -30 }, // negative frameRate
+      { similarity: 1.5 }, // similarity > 1
+      { similarity: -0.1 }, // similarity < 0
+      { classification: '' }, // empty classification
+      { analysisVersion: '' }, // empty version
+    ];
+
+    for (const badMeta of invalidMetas) {
+      let statusCode = null;
+      let errorThrown = null;
+
+      const req = {
+        user: { id: 'user_screen' },
+        params: { sessionId: 'any_session' },
+        body: {
+          type: 'SCREEN_VIEW_STABLE',
+          source: 'screen',
+          metadata: badMeta,
+        },
+      };
+      const res = {
+        status: (c) => { statusCode = c; return res; },
+        json: () => res,
+      };
+
+      await recordProctoringEvent(req, res, (err) => {
+        errorThrown = err;
+      });
+
+      assert.equal(statusCode, 400);
+      assert.ok(errorThrown, 'Must throw error on malformed metadata property');
+    }
+  });
+
+  // ─── 19. Rejection of Forbidden Raw Media Keys ────────────────
+  it('19. recordProctoringEvent rejects forbidden raw media keys (screenshot, frame, video, blob) with 400', async () => {
+    const forbiddenKeyPayloads = [
+      { screenshot: 'data' },
+      { rawFrame: 'data' },
+      { video: 'blob_ref' },
+      { blob: 'payload' },
+    ];
+
+    for (const badMeta of forbiddenKeyPayloads) {
+      let statusCode = null;
+      let errorThrown = null;
+
+      const req = {
+        user: { id: 'user_screen' },
+        params: { sessionId: 'any_session' },
+        body: {
+          type: 'SCREEN_VIEW_STABLE',
+          source: 'screen',
+          metadata: badMeta,
+        },
+      };
+      const res = {
+        status: (c) => { statusCode = c; return res; },
+        json: () => res,
+      };
+
+      await recordProctoringEvent(req, res, (err) => {
+        errorThrown = err;
+      });
+
+      assert.equal(statusCode, 400);
+      assert.match(errorThrown.message, /Image and binary payloads are not permitted/i);
+    }
+  });
+
 });
