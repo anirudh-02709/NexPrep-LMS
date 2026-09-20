@@ -113,7 +113,7 @@ const mockTestSessionSchema = new mongoose.Schema(
         default: {},
       },
     },
-    // Future architectural hook for Phase 2 AI-assisted proctoring subsystem
+    // Associated proctoring session
     proctoringSession: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ProctoringSession',

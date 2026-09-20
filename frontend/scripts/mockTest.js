@@ -253,7 +253,7 @@ function renderReadinessScreen() {
 
   return `
     <div class="readiness-panel">
-      <button class="back-btn" onclick="openInstructions('${escapeHtml(test?.slug || test?._id || '')}')"><span class="back-icon" aria-hidden="true"></span><span>Back to Instructions</span></button>
+      <button class="back-btn" onclick="backToInstructions('${escapeHtml(test?.slug || test?._id || '')}')"><span class="back-icon" aria-hidden="true"></span><span>Back to Instructions</span></button>
       <h2>System & Proctoring Readiness</h2>
       <p style="color:var(--muted-2);">Verify that your browser environment meets the requirements for a proctored examination. Permissions are requested only when you click "Enable Devices".</p>
 
@@ -277,7 +277,7 @@ function renderReadinessScreen() {
               ${isCamActive ? 'Active' : caps.cameraSupported ? 'Permission Required' : 'Not Supported'}
             </span>
           </div>
-          <p class="readiness-desc">Used locally to verify student presence. Video stays local and is not stored remotely.</p>
+          <p class="readiness-desc">Monitors camera availability and local face presence. Video is processed locally in the browser and never uploaded or stored remotely.</p>
         </div>
 
         <!-- Microphone API -->
@@ -288,7 +288,7 @@ function renderReadinessScreen() {
               ${isMicActive ? 'Active' : caps.microphoneSupported ? 'Permission Required' : 'Not Supported'}
             </span>
           </div>
-          <p class="readiness-desc">Monitors audio hardware state during testing session.</p>
+          <p class="readiness-desc">Monitors audio hardware presence during testing session. Audio is not recorded or uploaded.</p>
         </div>
 
         <!-- Screen Share API -->
@@ -299,7 +299,7 @@ function renderReadinessScreen() {
               ${isScreenActive ? 'Active' : caps.screenShareSupported ? 'Optional / Ready' : 'Not Supported'}
             </span>
           </div>
-          <p class="readiness-desc">Verifies screen capture capability for display integrity.</p>
+          <p class="readiness-desc">Verifies screen capture capability and visual resemblance to the exam view. No raw screen recordings are uploaded or stored remotely.</p>
         </div>
 
         <!-- Fullscreen API -->
@@ -334,7 +334,7 @@ function renderReadinessScreen() {
           </div>
 
           <div style="display:flex; justify-content:flex-end; gap:14px; margin-top:20px;">
-            <button class="card" style="min-height:unset; padding:12px 24px;" onclick="openInstructions('${escapeHtml(test?.slug || test?._id || '')}')">Back</button>
+            <button class="card" style="min-height:unset; padding:12px 24px;" onclick="backToInstructions('${escapeHtml(test?.slug || test?._id || '')}')">Back</button>
             <button class="btn-start-mock" id="btn-begin-proctored-exam" onclick="startExamWithProctoring('${escapeHtml(test?.slug || test?._id || '')}')">
               Begin Examination →
             </button>
@@ -436,16 +436,16 @@ function renderExamScreen() {
   }
 
   let screenDotClass = 'dot-inactive';
-  let screenText = 'Screen AI: Off';
+  let screenText = 'Screen: Off';
   if (mockState.screenAiStatus === 'active') {
     screenDotClass = 'dot-active';
-    screenText = 'Screen AI: Active';
+    screenText = 'Screen: Active';
   } else if (mockState.screenAiStatus === 'initializing') {
     screenDotClass = 'dot-warning';
-    screenText = 'Screen AI: Init';
+    screenText = 'Screen: Init';
   } else if (mockState.screenAiStatus === 'unavailable') {
     screenDotClass = 'dot-unavailable';
-    screenText = 'Screen AI: Unavailable';
+    screenText = 'Screen: Unavailable';
   }
 
   return `
@@ -482,15 +482,10 @@ function renderExamScreen() {
           <div class="dot-indicator ${cvDotClass}"></div>
           <span>${cvText}</span>
         </div>
-        <div class="telemetry-item" title="Screen Intelligence Status: ${mockState.screenAiStatus}">
+        <div class="telemetry-item" title="Screen Monitoring Status: ${mockState.screenAiStatus}">
           <div class="dot-indicator ${screenDotClass}"></div>
           <span>${screenText}</span>
         </div>
-        ${typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('proc_debug') === '1' ? `
-        <div class="telemetry-item" title="Temporal Correlation Engine (?proc_debug=1)">
-          <div class="dot-indicator dot-active"></div>
-          <span>Temporal: Ready</span>
-        </div>` : ''}
       </div>
 
       <div style="display:flex; align-items:center; gap:16px;">
@@ -1110,6 +1105,16 @@ async function requestProctoringPermissions() {
       return;
     }
 
+    // Stop any existing preview streams before acquiring new ones to prevent stream accumulation
+    if (mockState.cameraStream) {
+      mockState.cameraStream.getTracks().forEach((track) => track.stop());
+      mockState.cameraStream = null;
+    }
+    if (mockState.screenStream) {
+      mockState.screenStream.getTracks().forEach((track) => track.stop());
+      mockState.screenStream = null;
+    }
+
     // Request Webcam and Microphone streams explicitly
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 640 }, height: { ideal: 480 } },
@@ -1164,6 +1169,12 @@ async function requestProctoringPermissions() {
     alert('Permission denied or camera/microphone not accessible: ' + (error.message || ''));
     render();
   }
+}
+
+function backToInstructions(testIdOrSlug) {
+  // Cleanly release hardware preview streams when leaving readiness screen
+  teardownMediaAndTelemetry();
+  openInstructions(testIdOrSlug);
 }
 
 function backToList() {
@@ -1449,16 +1460,16 @@ function updateTopbarTelemetryUI() {
   }
 
   let screenDotClass = 'dot-inactive';
-  let screenText = 'Screen AI: Off';
+  let screenText = 'Screen: Off';
   if (mockState.screenAiStatus === 'active') {
     screenDotClass = 'dot-active';
-    screenText = 'Screen AI: Active';
+    screenText = 'Screen: Active';
   } else if (mockState.screenAiStatus === 'initializing') {
     screenDotClass = 'dot-warning';
-    screenText = 'Screen AI: Init';
+    screenText = 'Screen: Init';
   } else if (mockState.screenAiStatus === 'unavailable') {
     screenDotClass = 'dot-unavailable';
-    screenText = 'Screen AI: Unavailable';
+    screenText = 'Screen: Unavailable';
   }
 
   pill.innerHTML = `
@@ -1483,7 +1494,7 @@ function updateTopbarTelemetryUI() {
       <div class="dot-indicator ${cvDotClass}"></div>
       <span>${cvText}</span>
     </div>
-    <div class="telemetry-item" title="Screen Intelligence Status: ${mockState.screenAiStatus}">
+    <div class="telemetry-item" title="Screen Monitoring Status: ${mockState.screenAiStatus}">
       <div class="dot-indicator ${screenDotClass}"></div>
       <span>${screenText}</span>
     </div>
@@ -1699,6 +1710,8 @@ function closeSubmitModal() {
 }
 
 async function confirmSubmit() {
+  if (mockState.submitting) return;
+  mockState.submitting = true;
   mockState.showSubmitModal = false;
   mockState.loading = true;
   mockState.screen = 'result';
@@ -1728,10 +1741,10 @@ async function confirmSubmit() {
     });
   } catch (e) {}
 
-  // 3. Teardown media & listeners
+  // 4. Teardown media & listeners
   teardownMediaAndTelemetry();
 
-  // 3. Prepare answers payload
+  // 5. Prepare answers payload
   const answersPayload = [];
   mockState.answers.forEach((val, key) => {
     answersPayload.push({
@@ -1741,7 +1754,7 @@ async function confirmSubmit() {
     });
   });
 
-  // 4. Submit Exam
+  // 6. Submit Exam
   try {
     const { ok, data } = await apiFetch(`/api/mock-tests/${mockState.sessionId}/submit`, {
       method: 'POST',
@@ -1749,12 +1762,14 @@ async function confirmSubmit() {
     });
 
     if (!ok) {
-      alert(data.message || 'Error submitting exam.');
+      if (!/already been submitted/i.test(data?.message || '')) {
+        alert(data?.message || 'Error submitting exam.');
+      }
     } else {
       mockState.result = data.result;
     }
 
-    // 5. Fetch complete result and review
+    // 7. Fetch complete result and review
     const resResponse = await apiFetch(`/api/mock-tests/${mockState.sessionId}/result`);
     if (resResponse.ok) {
       mockState.result = resResponse.data.result;
@@ -1769,7 +1784,8 @@ async function confirmSubmit() {
     render();
   } catch (error) {
     mockState.loading = false;
-    alert('Network error submitting exam. Please check backend.');
+    mockState.submitting = false; // Reset single-flight guard so user is not permanently locked on transient network error
+    alert('Network error submitting exam. Please check backend connection and retry.');
     render();
   }
 }
@@ -1827,6 +1843,7 @@ window.switchResultTab = switchResultTab;
 window.fetchProctoringReport = fetchProctoringReport;
 window.viewEvidenceModal = viewEvidenceModal;
 window.closeEvidenceModal = closeEvidenceModal;
+window.backToInstructions = backToInstructions;
 
 // ─── Initialize ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {

@@ -2,7 +2,7 @@
 
 [![NexPrep Backend CI](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml/badge.svg)](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml)
 ![Node Version](https://img.shields.io/badge/node-20.x%20%7C%2022.x-brightgreen)
-![Tests](https://img.shields.io/badge/tests-209%20passing-success)
+![Tests](https://img.shields.io/badge/tests-210%20passing-success)
 ![Suites](https://img.shields.io/badge/suites-15%20passed-blue)
 ![License](https://img.shields.io/badge/license-ISC-blue)
 
@@ -34,6 +34,7 @@ The application couples a static, lightweight multi-page frontend hosted on Netl
 * **Event Correlation & Temporal Analysis Engine (Phase 5)**: Transforms raw, independent proctoring observations (browser telemetry, webcam CV, screen monitoring) into bounded temporal episodes and explicit pairwise observable relationships using a configurable 3000ms window. Features deterministic event categorization, bounded cluster growth (preventing infinite chaining), and authoritative answer-interaction context linkage (`answerInteractionContext`). Exposes an idempotent correlation API (`GET /api/mock-tests/:sessionId/proctoring/correlations`) while maintaining zero suspicion scores, cheating probabilities, or intent inference.
 * **Evidence-Grounded Proctoring Report & Reasoning (Phase 6)**: Transforms multi-stream telemetry and Phase 5 temporal correlation episodes into an objective, human-readable proctoring report (`GET /api/mock-tests/:sessionId/proctoring/report`). Implements a deterministic facts and reasoning engine with an append-only evidence model providing bidirectional traceability (`evidenceId` ↔ `episodeId` ↔ raw `eventIds`), historical hardware telemetry tracking (interruption counts independent of final states), explicit system limitations and unknowns, and post-exam UI with tab navigation and evidence drill-down modal. Strictly zero cheating scores, suspicion probabilities, or student intent inferences.
 * **Proctoring Evaluation, Benchmarking & Hardening (Phase 7)**: Comprehensive automated verification across 43 specialized evaluation scenarios covering the full temporal correlation matrix (Rules A through G), bounded clustering, full evidence graph traceability, safety assertions (zero suspicion/cheating scores), webcam/screen hysteresis and jitter noise suppression, 1,000-event synthetic load benchmark (< 10ms execution), false observation suppression, and zero academic grading regression. Explicitly documents manual evaluation boundaries (`NOT_MEASURED_AUTOMATICALLY`) for real-world client-side camera/screen hardware constraints.
+* **Final Integration & Hardened Proctoring Subsystem (Phase 8)**: Verified, deterministic end-to-end integration across all exam stages: Catalog → Instructions → Readiness & Device Permissions → Timed Exam with Live Telemetry → Submission / Expiry → Academic Scoring (+4 / -1 / 0) → Evidence-Grounded Proctoring Report → Bidirectional Evidence Drill-Down. Hardens media preview stream re-entrance, provides submission single-flight double-click protection with transient error recovery, enforces expired session scoring invariants while rejecting modifications, and maps a complete 20-scenario E2E matrix (18 automated, 2 manual-only permission dialogs).
 * **Granular Progress Telemetry & Resumption**: Chapter access and completion states are stored via atomic upsert operations (`$set`, `$setOnInsert`) on compound-unique indexed records (`{ user: 1, subject: 1, chapter: 1 }`). A dedicated continue-learning endpoint allows students to instantly resume their most recently studied module.
 * **Timezone-Independent Consecutive Practice Streaks**: An authoritative streak service calculates active daily practice streaks in UTC calendar days, providing deterministic streak evaluation across clients. The algorithm deduplicates multiple tests taken on the same calendar day, preserves the active streak if the user practiced yesterday but has not yet practiced today, and resets to 0 if both days are missed or if calendar gaps occur.
 * **Rule-Based Performance Analytics**: The dashboard computes overall score averages, subject-level performance percentages, detects strongest and weakest subject areas (triggering targeted study recommendations when averages fall below 60%), tracks 7-day consistency activity, and detects score trends across attempts.
@@ -540,24 +541,52 @@ npm test
 
 ---
 
-## Proctoring Evaluation & Hardening (Phase 7)
+## Proctoring Evaluation, Hardening & Final Integration (Phases 7–8)
 
-Phase 7 hardens, benchmarks, and validates the end-to-end proctoring subsystem against deterministic stress, edge cases, and safety bounds.
+The proctoring subsystem is final integrated and hardened for the evaluated scope. The end-to-end architecture connects the full candidate journey across 8 discrete stages:
 
-### 1. Verification Matrix & Automation Scope
+```text
+MOCK TEST CATALOG
+       ↓
+EXAM INSTRUCTIONS
+       ↓
+READINESS & PERMISSIONS (Local Camera & Screen Verification)
+       ↓
+TIMED EXAM SESSION (Authoritative Countdown & Real-Time Local Telemetry)
+       ↓
+SUBMISSION / TIMEOUT (Single-Flight Protection & Expiry Invariant)
+       ↓
+ACADEMIC EVALUATION (Strict +4 / -1 / 0 Scoring Isolated on Server)
+       ↓
+PROCTORING TELEMETRY REPORT (Idempotent Temporal Correlation & Limitations)
+       ↓
+BIDIRECTIONAL EVIDENCE DRILL-DOWN (Traceability from Report to Raw Events)
+```
 
-| Evaluation Area | Automated Test Coverage | Status | Notes |
-| :--- | :--- | :--- | :--- |
-| **Temporal Correlation Matrix** | Rules A–G positive & boundary negative tests ($\Delta t \le 3000$ms vs $3001$ms) | **14 / 14 Passed** | Fully deterministic, tie-breaking by event ID |
-| **Episode Boundaries & Clustering** | 10s, 29s, 30s, and 35s split at `maxClusterDurationMs` ($30000$ms) | **6 / 6 Passed** | Quiet period ($\Delta t > 3000$ms) splits clusters |
-| **Evidence Traceability** | Bidirectional mapping: timeline / relationships $\to$ `evidenceId` $\to$ raw `eventId` | **4 / 4 Passed** | Cross-session isolation verified |
-| **Safety & Grounded Limitations** | Report schemas assert absence of suspicion scores, cheating probabilities, or intent claims | **2 / 2 Passed** | Semantic phrasing audited |
-| **Webcam CV State Machine** | Hysteresis thresholds ($300$ms, $1000$ms, $750$ms), jitter suppression, stop teardown | **6 / 6 Passed** | Pure logic tested in isolation |
-| **Screen Observation State Machine** | Hysteresis ($1000$ms, $1500$ms), similarity boundary ($0.75$), blank frame rejection | **5 / 5 Passed** | Baseline recalibration hardened |
-| **Volume & Resource Limits** | 1,000 heartbeats $\to$ 0 episodes; 50 repeated events $\to$ bounded relationships | **2 / 2 Passed** | Zero combinatorial explosion |
-| **Controlled Performance Benchmark**| 1,000 mixed raw events correlated and full report synthesized | **1 / 1 Passed** | **Execution time: ~9.8ms** |
-| **False Observation Suppression** | Transient deviation states filtered prior to hysteresis thresholds | **2 / 2 Passed** | Zero false observations emitted |
-| **Academic Scoring Isolation** | +4 / -1 / 0 score evaluation verified before and after proctoring runs | **1 / 1 Passed** | Zero regression or academic coupling |
+### 1. End-to-End Verification Matrix (20 Scenarios: 18 Automated, 2 Manual-Only)
+
+| ID | Scenario | Scope | Expected Behavior | Verification Status |
+| :---: | :--- | :--- | :--- | :--- |
+| **A** | Normal Exam Lifecycle | Automated | Exam start → answers saved → submission → server grading (+4/-1/0) → proctoring report contains expected telemetry with no derived relationships for clean synthetic scenario. | **Passed** (`mock_test.test.js`, `proctoring_report.test.js`) |
+| **B** | Exam Timeout | Automated | Authoritative timer expiry rejects late answers → marks session expired → scores saved answers. | **Passed** (`mock_test.test.js`) |
+| **C** | Refresh / Resume | Automated | Browser refresh during active exam resumes attempt with preserved answers and authoritative timer. | **Passed** (`mock_test.test.js`, `proctoring.test.js`) |
+| **D** | Native Camera Permission Denied | **Manual-Only** | Browser-native `getUserMedia` denial triggers rejection → `cameraState = 'denied'` → non-blocking notice. | **Manual Validation Required** (Browser-native dialog) |
+| **E** | Native Screen-Share Canceled | **Manual-Only** | Browser display picker cancel triggers abort → `screenShareState = 'inactive'` → exam proceeds. | **Manual Validation Required** (Browser-native picker) |
+| **F** | Camera Track Stopped | Automated | Simulated `MediaStreamTrack.ended` triggers `CAMERA_STOPPED` → cameraState = 'inactive' → Rule G correlates with face absence. | **Passed** (`proctoring.test.js`, `temporal_correlation.test.js`) |
+| **G** | Screen-Share Stopped | Automated | Simulated `MediaStreamTrack.ended` on display track triggers `SCREEN_SHARE_STOPPED` → screen monitor emits `SCREEN_VIEW_UNAVAILABLE` → Rule F correlates. | **Passed** (`proctoring.test.js`, `screen_observation.test.js`) |
+| **H** | Fullscreen Exited | Automated | Fullscreen exit emits `FULLSCREEN_EXITED` → `fullscreenState = 'inactive'` → Rule C/D correlates. | **Passed** (`proctoring.test.js`, `temporal_correlation.test.js`) |
+| **I** | Browser Focus Lost | Automated | Window blur emits `FOCUS_LOST` → focus regain emits `FOCUS_REGAINED` with elapsed duration → Rule A correlates. | **Passed** (`proctoring.test.js`, `temporal_correlation.test.js`) |
+| **J** | Browser Visibility Changed | Automated | Document visibility hidden emits `PAGE_HIDDEN` → visible emits `PAGE_VISIBLE` → Rule A/B correlates. | **Passed** (`proctoring.test.js`, `temporal_correlation.test.js`) |
+| **K** | Face Absent | Automated | Webcam CV observes 0 faces → hysteresis filters $< 1000$ms → sustained absence emits `FACE_ABSENT` with duration. | **Passed** (`cv_observation.test.js`, `proctoring_evaluation.test.js`) |
+| **L** | Multiple Faces | Automated | Webcam CV detects $> 1$ face → hysteresis filters $< 750$ms → sustained detection emits `MULTIPLE_FACES`. | **Passed** (`cv_observation.test.js`, `proctoring_evaluation.test.js`) |
+| **M** | Head Pose Deviation | Automated | Webcam CV detects yaw/pitch deviation → $< 1000$ms filtered → sustained deviation emits `HEAD_POSE_DEVIATION`. | **Passed** (`cv_observation.test.js`, `proctoring_evaluation.test.js`) |
+| **N** | Screen View Changed | Automated | In-memory canvas similarity $< 0.75$ → $< 1500$ms filtered → sustained deviation emits `SCREEN_VIEW_CHANGED`. | **Passed** (`screen_observation.test.js`, `proctoring_evaluation.test.js`) |
+| **O** | Simultaneous Telemetry Events | Automated | Coincident events within $\le 3000$ms cluster into bounded episode with relationships; tied timestamps sorted by ID. | **Passed** (`proctoring_evaluation.test.js`) |
+| **P** | Heartbeat-Heavy Session | Automated | 1,000 heartbeats maintain session liveness without adding DB event rows and produce 0 episodes / relationships. | **Passed** (`proctoring_evaluation.test.js`) |
+| **Q** | Duplicate Submission | Automated | Server rejects duplicate submit with HTTP 400. `stopProctoring` is idempotent. Single-flight UI guard prevents race conditions. | **Passed** (`mock_test.test.js`, `proctoring.test.js`) |
+| **R** | Expired Session Modification | Automated | Expired sessions evaluate saved answers on result lookup while strictly rejecting new answer submissions with HTTP 400. | **Passed** (`mock_test.test.js`) |
+| **S** | Unauthorized Report Access | Automated | Candidate A cannot access Candidate B's session or report (HTTP 403 Forbidden). Unauthenticated access returns HTTP 401. | **Passed** (`proctoring_report.test.js`) |
+| **T** | Academic Scoring Isolation | Automated | Academic marks computed exclusively via +4/-1/0 formula from questions bank; proctoring telemetry has zero impact. | **Passed** (`proctoring_report.test.js`, `proctoring_evaluation.test.js`) |
 
 ### 2. Manual Evaluation Requirements (`NOT_MEASURED_AUTOMATICALLY`)
 

@@ -142,7 +142,7 @@ const startMockTestSession = async (req, res, next) => {
         existingSession.status = 'expired';
         await existingSession.save();
       } else {
-        // Session is still active - RESUME IT seamlessly without duplicate attempt
+        // Session is still active - resume attempt with preserved answers and elapsed time
         const sanitizedQuestions = sanitizeQuestions(mockTest.questions);
 
         return res.status(200).json({
@@ -351,6 +351,11 @@ const submitMockTestSession = async (req, res, next) => {
       throw new Error('Exam session has already been submitted.');
     }
 
+    if (session.status === 'expired') {
+      res.status(400);
+      throw new Error('Submission rejected: exam session has expired.');
+    }
+
     const mockTest = await MockTest.findById(session.mockTest);
     if (!mockTest) {
       res.status(404);
@@ -443,6 +448,16 @@ const getMockTestResult = async (req, res, next) => {
 
     const review = buildQuestionReview(mockTest, session.answers);
 
+    let result = session.result;
+    if (!result && session.status === 'expired') {
+      result = validateAndScoreMockTest(mockTest, session.answers);
+      session.result = result;
+      session.submittedAt = session.submittedAt || new Date();
+      if (typeof session.save === 'function') {
+        await session.save();
+      }
+    }
+
     return res.status(200).json({
       success: true,
       sessionId: session._id,
@@ -460,7 +475,7 @@ const getMockTestResult = async (req, res, next) => {
         sections: mockTest.sections,
         markingScheme: mockTest.markingScheme,
       },
-      result: session.result,
+      result,
       review,
     });
   } catch (error) {

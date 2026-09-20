@@ -665,4 +665,115 @@ describe('JEE Main Mock Test Subsystem Suite', () => {
     }
   });
 
+  // ─── 14. Expired Session Result Hardening & Modification Invariant ───
+  it('16. getMockTestResult evaluates score for expired session with absent result, while rejecting subsequent answer submissions', async () => {
+    const testDef = {
+      _id: 'mock_test_expired_eval',
+      questions: [
+        { id: 'exp-1', section: 'physics', q: 'Q1', options: ['A', 'B'], answer: 0 },
+        { id: 'exp-2', section: 'physics', q: 'Q2', options: ['A', 'B'], answer: 1 },
+      ],
+      markingScheme: { correct: 4, incorrect: -1, unattempted: 0 },
+    };
+
+    let sessionSaved = null;
+    const sessionDoc = {
+      _id: 'session_expired_scoring',
+      user: 'student_1',
+      mockTest: 'mock_test_expired_eval',
+      status: 'expired',
+      expiresAt: new Date(Date.now() - 10000), // Expired
+      answers: [
+        { questionId: 'exp-1', selectedOption: 0 }, // Correct (+4)
+        { questionId: 'exp-2', selectedOption: -1 }, // Unattempted (0)
+      ],
+      result: null, // Initially absent
+      submittedAt: null,
+      save: async function () {
+        sessionSaved = this;
+      },
+    };
+
+    const originalSessionFindById = MockTestSession.findById;
+    const originalMockFindById = MockTest.findById;
+
+    MockTestSession.findById = async () => sessionDoc;
+    MockTest.findById = async () => testDef;
+
+    try {
+      // Step 1: getMockTestResult evaluates score and persists to session
+      const reqResult = {
+        user: { id: 'student_1' },
+        params: { sessionId: 'session_expired_scoring' },
+      };
+
+      let resultBody = null;
+      const resResult = {
+        status: () => resResult,
+        json: (payload) => {
+          resultBody = payload;
+          return resResult;
+        },
+      };
+
+      await getMockTestResult(reqResult, resResult, () => {});
+
+      assert.equal(resultBody.success, true);
+      assert.equal(resultBody.status, 'expired');
+      assert.ok(resultBody.result);
+      assert.equal(resultBody.result.score, 4); // 1 correct (+4) + 1 unattempted (0) = 4
+      assert.equal(sessionDoc.result.score, 4); // Persisted
+      assert.ok(sessionDoc.submittedAt); // Submitted timestamp established
+
+      // Step 2: Invariant check — subsequent saveAnswer must still be strictly rejected with HTTP 400
+      const reqAnswer = {
+        user: { id: 'student_1' },
+        params: { sessionId: 'session_expired_scoring' },
+        body: { questionId: 'exp-2', selectedOption: 1 },
+      };
+
+      let answerStatusCode = null;
+      let answerError = null;
+      const resAnswer = {
+        status: (code) => {
+          answerStatusCode = code;
+          return resAnswer;
+        },
+      };
+
+      await saveAnswer(reqAnswer, resAnswer, (err) => {
+        answerError = err;
+      });
+
+      assert.equal(answerStatusCode, 400);
+      assert.match(answerError.message, /expired/i);
+
+      // Step 3: Invariant check — subsequent submitMockTestSession must also be rejected with HTTP 400
+      const reqSubmit = {
+        user: { id: 'student_1' },
+        params: { sessionId: 'session_expired_scoring' },
+        body: { answers: [{ questionId: 'exp-2', selectedOption: 1 }] },
+      };
+
+      let submitStatusCode = null;
+      let submitError = null;
+      const resSubmit = {
+        status: (code) => {
+          submitStatusCode = code;
+          return resSubmit;
+        },
+      };
+
+      await submitMockTestSession(reqSubmit, resSubmit, (err) => {
+        submitError = err;
+      });
+
+      assert.equal(submitStatusCode, 400);
+      assert.match(submitError.message, /expired/i);
+    } finally {
+      MockTestSession.findById = originalSessionFindById;
+      MockTest.findById = originalMockFindById;
+    }
+  });
+
 });
