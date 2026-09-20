@@ -13,6 +13,36 @@ function sanitizeState(value, allowedValues, fallback = 'inactive') {
 }
 
 /**
+ * Validates metadata object, rejecting payloads exceeding 4 KB, non-objects,
+ * or raw image/binary data URLs.
+ */
+function validateMetadata(metadata, res) {
+  if (metadata === undefined || metadata === null) {
+    return {};
+  }
+  if (typeof metadata !== 'object' || Array.isArray(metadata)) {
+    res.status(400);
+    throw new Error('Event metadata must be an object.');
+  }
+  let metadataStr;
+  try {
+    metadataStr = JSON.stringify(metadata);
+  } catch (err) {
+    res.status(400);
+    throw new Error('Malformed metadata payload.');
+  }
+  if (Buffer.byteLength(metadataStr, 'utf8') > 4096) {
+    res.status(400);
+    throw new Error('Metadata payload exceeds maximum allowed size of 4KB.');
+  }
+  if (/data:image\//i.test(metadataStr) || /;base64,/i.test(metadataStr)) {
+    res.status(400);
+    throw new Error('Image and binary payloads are not permitted in event metadata.');
+  }
+  return metadata;
+}
+
+/**
  * POST /api/mock-tests/:sessionId/proctoring/start
  * Starts or resumes a proctoring session associated with an active mock test session.
  */
@@ -70,6 +100,8 @@ const startProctoring = async (req, res, next) => {
       const fullscreenState = sanitizeState(req.body.fullscreenState, ['active', 'inactive', 'unsupported']);
       const visibilityState = sanitizeState(req.body.visibilityState, ['visible', 'hidden'], 'visible');
 
+      const validatedMetadata = validateMetadata(req.body.metadata, res);
+
       procSession = await ProctoringSession.create({
         mockTestSession: mockSession._id,
         user: req.user.id,
@@ -81,7 +113,7 @@ const startProctoring = async (req, res, next) => {
         screenShareState,
         fullscreenState,
         visibilityState,
-        metadata: typeof req.body.metadata === 'object' && req.body.metadata !== null ? req.body.metadata : {},
+        metadata: validatedMetadata,
       });
     }
 
@@ -130,12 +162,13 @@ const recordProctoringEvent = async (req, res, next) => {
       throw new Error('Event type is required.');
     }
 
-    // Validate type against controlled Phase 2 enums
+    // Validate type against controlled Phase 2 & 3 enums
     if (!ALLOWED_EVENT_TYPES.includes(type)) {
       res.status(400);
       throw new Error(`Invalid proctoring event type: '${type}'.`);
     }
 
+    const validatedMetadata = validateMetadata(metadata, res);
     const validatedSource = EVENT_SOURCES.includes(source) ? source : 'browser';
 
     const mockSession = await MockTestSession.findById(sessionId);
@@ -194,7 +227,7 @@ const recordProctoringEvent = async (req, res, next) => {
       source: validatedSource,
       timestamp: new Date(), // Authoritative server timestamp
       duration: Math.max(0, Number(duration) || 0),
-      metadata: typeof metadata === 'object' && metadata !== null ? metadata : {},
+      metadata: validatedMetadata,
     });
 
     return res.status(201).json({

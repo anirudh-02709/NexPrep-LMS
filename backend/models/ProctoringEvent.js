@@ -20,6 +20,12 @@ const ALLOWED_EVENT_TYPES = Object.freeze([
   'SCREEN_SHARE_STARTED',
   'SCREEN_SHARE_STOPPED',
 
+  // Computer vision observations (Phase 3)
+  'FACE_PRESENT',
+  'FACE_ABSENT',
+  'MULTIPLE_FACES',
+  'HEAD_POSE_DEVIATION',
+
   // Session lifecycle
   'PROCTORING_STARTED',
   'PROCTORING_STOPPED',
@@ -27,7 +33,7 @@ const ALLOWED_EVENT_TYPES = Object.freeze([
   'PROCTORING_ERROR',
 ]);
 
-const EVENT_SOURCES = Object.freeze(['browser', 'media', 'screen', 'session', 'system']);
+const EVENT_SOURCES = Object.freeze(['browser', 'media', 'webcam', 'screen', 'session', 'system']);
 
 const proctoringEventSchema = new mongoose.Schema(
   {

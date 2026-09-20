@@ -48,7 +48,21 @@ const mockState = {
   screenStream: null,
   blurTimestamp: null,
   activeEventListeners: [],
+
+  // ─── Phase 3: Webcam Computer Vision State ───
+  cvAnalyzer: null,
+  cvStatus: 'off', // 'off' | 'initializing' | 'active' | 'unavailable' | 'stopped'
 };
+
+function attachExamWebcamVideo() {
+  const videoEl = document.getElementById('exam-webcam-video');
+  if (videoEl && mockState.cameraStream) {
+    if (videoEl.srcObject !== mockState.cameraStream) {
+      videoEl.srcObject = mockState.cameraStream;
+    }
+    videoEl.play().catch(() => {});
+  }
+}
 
 // ─── Renderer ──────────────────────────────────────────
 function render() {
@@ -65,6 +79,7 @@ function render() {
     attachWebcamPreview();
   } else if (mockState.screen === 'exam') {
     container.innerHTML = renderExamScreen();
+    attachExamWebcamVideo();
   } else if (mockState.screen === 'result') {
     container.innerHTML = renderResultScreen();
   }
@@ -396,6 +411,18 @@ function renderExamScreen() {
 
   // Proctoring telemetry indicators
   const pState = mockState.proctoringState;
+  let cvDotClass = 'dot-inactive';
+  let cvText = 'CV: Off';
+  if (mockState.cvStatus === 'active') {
+    cvDotClass = 'dot-active';
+    cvText = 'CV: Active';
+  } else if (mockState.cvStatus === 'initializing') {
+    cvDotClass = 'dot-warning';
+    cvText = 'CV: Init';
+  } else if (mockState.cvStatus === 'unavailable') {
+    cvDotClass = 'dot-unavailable';
+    cvText = 'CV: Unavailable';
+  }
 
   return `
     <div class="exam-topbar">
@@ -426,6 +453,10 @@ function renderExamScreen() {
         <div class="telemetry-item" title="Fullscreen State">
           <div class="dot-indicator ${pState.fullscreenState === 'active' ? 'dot-active' : 'dot-inactive'}"></div>
           <span>FS</span>
+        </div>
+        <div class="telemetry-item" title="Computer Vision Status: ${mockState.cvStatus}">
+          <div class="dot-indicator ${cvDotClass}"></div>
+          <span>${cvText}</span>
         </div>
       </div>
 
@@ -474,6 +505,20 @@ function renderExamScreen() {
 
       <!-- Right: Palette Panel -->
       <div class="exam-palette-panel">
+        <!-- Compact Webcam Monitor (Phase 3) -->
+        <div class="exam-webcam-card">
+          <div class="exam-webcam-header">
+            <span>Webcam Monitor</span>
+            <span class="exam-webcam-badge ${mockState.cvStatus === 'active' ? 'badge-active' : ''}">${cvText}</span>
+          </div>
+          <div class="exam-webcam-box">
+            <video id="exam-webcam-video" autoplay playsinline muted></video>
+            <div id="exam-webcam-placeholder" class="exam-webcam-placeholder" style="${mockState.cameraStream ? 'display:none;' : ''}">
+              Camera inactive
+            </div>
+          </div>
+        </div>
+
         <h3 class="palette-title">Question Palette</h3>
 
         <div class="palette-legend">
@@ -914,11 +959,51 @@ async function startExamWithProctoring(testIdOrSlug) {
 
     // 6. Start Unified Heartbeat (every 30s)
     startHeartbeat();
+
+    // 7. Start Webcam Computer Vision Pipeline (Phase 3)
+    startWebcamCvPipeline();
   } catch (error) {
     mockState.loading = false;
     alert('Network error: unable to start proctored mock test.');
     mockState.screen = 'list';
     render();
+  }
+}
+
+async function startWebcamCvPipeline() {
+  const examVideoEl = document.getElementById('exam-webcam-video');
+  if (!examVideoEl || !mockState.cameraStream) {
+    mockState.cvStatus = 'unavailable';
+    updateTopbarTelemetryUI();
+    return;
+  }
+
+  if (mockState.cvAnalyzer) {
+    mockState.cvAnalyzer.stop();
+  }
+
+  if (window.WebcamCv && window.WebcamCv.createWebcamCvAnalyzer) {
+    mockState.cvAnalyzer = window.WebcamCv.createWebcamCvAnalyzer({
+      videoElement: examVideoEl,
+      onObservation: (observation) => {
+        // Forward stabilized observation to server-authoritative telemetry endpoint
+        sendProctoringEvent(
+          observation.type,
+          observation.source || 'webcam',
+          observation.duration || 0,
+          observation.metadata || {}
+        );
+      },
+      onStatusChange: ({ status }) => {
+        mockState.cvStatus = status;
+        updateTopbarTelemetryUI();
+      },
+    });
+
+    await mockState.cvAnalyzer.start(examVideoEl);
+  } else {
+    mockState.cvStatus = 'unavailable';
+    updateTopbarTelemetryUI();
   }
 }
 
@@ -1018,6 +1103,19 @@ function updateTopbarTelemetryUI() {
   if (!pill) return;
 
   const pState = mockState.proctoringState;
+  let cvDotClass = 'dot-inactive';
+  let cvText = 'CV: Off';
+  if (mockState.cvStatus === 'active') {
+    cvDotClass = 'dot-active';
+    cvText = 'CV: Active';
+  } else if (mockState.cvStatus === 'initializing') {
+    cvDotClass = 'dot-warning';
+    cvText = 'CV: Init';
+  } else if (mockState.cvStatus === 'unavailable') {
+    cvDotClass = 'dot-unavailable';
+    cvText = 'CV: Unavailable';
+  }
+
   pill.innerHTML = `
     <span style="color:var(--muted); font-size:0.75rem; text-transform:uppercase;">Proctoring</span>
     <div class="telemetry-item" title="Webcam Stream State">
@@ -1036,6 +1134,10 @@ function updateTopbarTelemetryUI() {
       <div class="dot-indicator ${pState.fullscreenState === 'active' ? 'dot-active' : 'dot-inactive'}"></div>
       <span>FS</span>
     </div>
+    <div class="telemetry-item" title="Computer Vision Status: ${mockState.cvStatus}">
+      <div class="dot-indicator ${cvDotClass}"></div>
+      <span>${cvText}</span>
+    </div>
   `;
 }
 
@@ -1043,6 +1145,12 @@ function teardownMediaAndTelemetry() {
   clearInterval(mockState.timerInterval);
   clearInterval(mockState.heartbeatInterval);
   removeTelemetryListeners();
+
+  if (mockState.cvAnalyzer) {
+    mockState.cvAnalyzer.stop();
+    mockState.cvAnalyzer = null;
+  }
+  mockState.cvStatus = 'off';
 
   if (mockState.cameraStream) {
     mockState.cameraStream.getTracks().forEach((track) => track.stop());
@@ -1241,7 +1349,15 @@ async function confirmSubmit() {
   mockState.screen = 'result';
   render();
 
-  // 1. Stop Proctoring Session
+  // 1. Stop Computer Vision Pipeline (flushes/closes any active episodes)
+  if (mockState.cvAnalyzer) {
+    try {
+      mockState.cvAnalyzer.stop();
+    } catch (e) {}
+    mockState.cvAnalyzer = null;
+  }
+
+  // 2. Stop Proctoring Session
   try {
     await apiFetch(`/api/mock-tests/${mockState.sessionId}/proctoring/stop`, {
       method: 'POST',
@@ -1249,7 +1365,7 @@ async function confirmSubmit() {
     });
   } catch (e) {}
 
-  // 2. Teardown media & listeners
+  // 3. Teardown media & listeners
   teardownMediaAndTelemetry();
 
   // 3. Prepare answers payload

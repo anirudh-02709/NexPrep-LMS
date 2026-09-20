@@ -648,4 +648,134 @@ describe('Foundational Proctoring Telemetry Suite (Phase 2)', () => {
     }
   });
 
+  // ─── 13. Phase 3 CV Events & Webcam Source Acceptance ─────────
+  it('13. recordProctoringEvent accepts Phase 3 CV events with source "webcam"', async () => {
+    const mockSession = {
+      _id: 'mock_sess_cv',
+      user: 'user_cv',
+      status: 'in_progress',
+      expiresAt: new Date(Date.now() + 3600000),
+    };
+    const procSession = {
+      _id: 'proc_sess_cv',
+      mockTestSession: 'mock_sess_cv',
+      user: 'user_cv',
+      status: 'active',
+      lastHeartbeatAt: new Date(),
+      save: async () => {},
+    };
+
+    const originalMockFindById = MockTestSession.findById;
+    const originalProcFindOne = ProctoringSession.findOne;
+    const originalEventCreate = ProctoringEvent.create;
+
+    MockTestSession.findById = async () => mockSession;
+    ProctoringSession.findOne = async () => procSession;
+
+    const cvTypes = ['FACE_PRESENT', 'FACE_ABSENT', 'MULTIPLE_FACES', 'HEAD_POSE_DEVIATION'];
+
+    try {
+      for (const cvType of cvTypes) {
+        let loggedEvent = null;
+        ProctoringEvent.create = async (doc) => {
+          loggedEvent = { _id: 'ev_' + cvType, ...doc };
+          return loggedEvent;
+        };
+
+        let respStatus = null;
+        let respBody = null;
+        const req = {
+          user: { id: 'user_cv' },
+          params: { sessionId: 'mock_sess_cv' },
+          body: {
+            type: cvType,
+            source: 'webcam',
+            duration: 1200,
+            metadata: { confirmedDurationMs: 1200 },
+          },
+        };
+        const res = {
+          status: (c) => { respStatus = c; return res; },
+          json: (b) => { respBody = b; return res; },
+        };
+
+        await recordProctoringEvent(req, res, () => {});
+
+        assert.equal(respStatus, 201);
+        assert.equal(respBody.event.type, cvType);
+        assert.equal(respBody.event.source, 'webcam');
+        assert.equal(loggedEvent.type, cvType);
+        assert.equal(loggedEvent.source, 'webcam');
+        assert.equal(loggedEvent.duration, 1200);
+      }
+    } finally {
+      MockTestSession.findById = originalMockFindById;
+      ProctoringSession.findOne = originalProcFindOne;
+      ProctoringEvent.create = originalEventCreate;
+    }
+  });
+
+  // ─── 14. Rejection of Oversized Metadata (> 4KB) ──────────────
+  it('14. recordProctoringEvent rejects metadata exceeding 4096 bytes with 400 Bad Request', async () => {
+    const hugeString = 'x'.repeat(4100);
+    let statusCode = null;
+    let errorThrown = null;
+
+    const req = {
+      user: { id: 'user_cv' },
+      params: { sessionId: 'any_session' },
+      body: {
+        type: 'FACE_PRESENT',
+        source: 'webcam',
+        metadata: { payload: hugeString },
+      },
+    };
+    const res = {
+      status: (c) => { statusCode = c; return res; },
+      json: () => res,
+    };
+
+    await recordProctoringEvent(req, res, (err) => {
+      errorThrown = err;
+    });
+
+    assert.equal(statusCode, 400);
+    assert.match(errorThrown.message, /exceeds maximum allowed size of 4KB/i);
+  });
+
+  // ─── 15. Rejection of Raw Image / Base64 Payloads in Metadata ──
+  it('15. recordProctoringEvent rejects metadata containing raw image or base64 data URLs with 400', async () => {
+    const forbiddenPayloads = [
+      { image: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...' },
+      { frame: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB...' },
+      { snapshot: 'some_prefix;base64,AQIDBA==' },
+    ];
+
+    for (const badMeta of forbiddenPayloads) {
+      let statusCode = null;
+      let errorThrown = null;
+
+      const req = {
+        user: { id: 'user_cv' },
+        params: { sessionId: 'any_session' },
+        body: {
+          type: 'FACE_PRESENT',
+          source: 'webcam',
+          metadata: badMeta,
+        },
+      };
+      const res = {
+        status: (c) => { statusCode = c; return res; },
+        json: () => res,
+      };
+
+      await recordProctoringEvent(req, res, (err) => {
+        errorThrown = err;
+      });
+
+      assert.equal(statusCode, 400);
+      assert.match(errorThrown.message, /Image and binary payloads are not permitted/i);
+    }
+  });
+
 });

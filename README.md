@@ -2,8 +2,8 @@
 
 [![NexPrep Backend CI](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml/badge.svg)](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml)
 ![Node Version](https://img.shields.io/badge/node-20.x%20%7C%2022.x-brightgreen)
-![Tests](https://img.shields.io/badge/tests-88%20passing-success)
-![Suites](https://img.shields.io/badge/suites-10%20passed-blue)
+![Tests](https://img.shields.io/badge/tests-99%20passing-success)
+![Suites](https://img.shields.io/badge/suites-11%20passed-blue)
 ![License](https://img.shields.io/badge/license-ISC-blue)
 
 NexPrep is a full-stack Learning Management System (LMS) engineered for students preparing for the Joint Entrance Examination (JEE). The platform delivers structured chapter-wise concept modules across Physics, Chemistry, and Mathematics, server-authoritative timed test assessments, persistent chapter progress telemetry with continue-learning resumption, timezone-independent consecutive practice streaks, and rule-based performance analytics.
@@ -29,6 +29,7 @@ The application couples a static, lightweight multi-page frontend hosted on Netl
 * **Server-Authoritative Test & Scoring Engine**: Correct answer keys are maintained exclusively on the server and are never delivered to the client during test generation (`GET /api/tests/questions`). Submissions are validated and graded server-side against an authoritative 120-question bank, preventing client-side answer-key inspection and client-side score fabrication.
 * **JEE Main Mock Test Subsystem**: Alongside existing chapter-wise practice tests, NexPrep includes a separate JEE Main Mock Test subsystem (`/api/mock-tests/*`, `MockTest`, `MockTestSession`, and `mock-test.html`). It features multi-section navigation across Physics, Chemistry, and Mathematics, server-authoritative countdown timing, +4 / -1 / 0 marking scheme, resilient attempt restoration upon browser refresh, and comprehensive post-exam analytics.
 * **Foundational Exam Proctoring & Telemetry Infrastructure**: Includes an environment proctoring subsystem (`ProctoringSession`, `ProctoringEvent`, `/api/mock-tests/:sessionId/proctoring/*`) designed to establish client readiness verification (camera, microphone, screen-sharing, fullscreen support) and capture server-authoritative browser telemetry (debounced focus lost/regained episodes, page visibility changes, fullscreen transitions, and media track termination). All events are immutable with server-assigned timestamps.
+* **Client-Side Webcam Computer Vision (Phase 3)**: Introduces on-device browser computer vision via `@mediapipe/tasks-vision` Face Landmarker. Strictly processes video frames locally without uploading raw media or making cloud vision API calls. Emits objective telemetry observations (`FACE_PRESENT`, `FACE_ABSENT`, `MULTIPLE_FACES`, `HEAD_POSE_DEVIATION`) stabilized by a pure, DOM-independent observation state machine with configurable temporal hysteresis. Contains zero subjective cheating judgments or suspicion scores.
 * **Granular Progress Telemetry & Resumption**: Chapter access and completion states are stored via atomic upsert operations (`$set`, `$setOnInsert`) on compound-unique indexed records (`{ user: 1, subject: 1, chapter: 1 }`). A dedicated continue-learning endpoint allows students to instantly resume their most recently studied module.
 * **Timezone-Independent Consecutive Practice Streaks**: An authoritative streak service calculates active daily practice streaks in UTC calendar days, providing deterministic streak evaluation across clients. The algorithm deduplicates multiple tests taken on the same calendar day, preserves the active streak if the user practiced yesterday but has not yet practiced today, and resets to 0 if both days are missed or if calendar gaps occur.
 * **Rule-Based Performance Analytics**: The dashboard computes overall score averages, subject-level performance percentages, detects strongest and weakest subject areas (triggering targeted study recommendations when averages fall below 60%), tracks 7-day consistency activity, and detects score trends across attempts.
@@ -553,8 +554,11 @@ NexPrep-LMS/
 │   │   └── testScoring.js         # Question sanitization & test evaluation
 │   ├── tests/
 │   │   ├── auth.test.js           # Authentication & JWT protection tests (8 tests)
+│   │   ├── cv_observation.test.js # Webcam CV observation state machine tests (8 tests)
 │   │   ├── errorHandling.test.js  # Error handling & middleware tests (5 tests)
 │   │   ├── indexingPagination.test.js # Indexing & pagination tests (5 tests)
+│   │   ├── mockTest.test.js       # JEE mock test scoring & lifecycle tests (15 tests)
+│   │   ├── proctoring.test.js     # Foundational proctoring & telemetry tests (15 tests)
 │   │   ├── scoring.test.js        # Server-authoritative scoring tests (12 tests)
 │   │   ├── security.test.js       # Helmet, rate limiting & DNS tests (4 tests)
 │   │   ├── streak.test.js         # Practice streak calculation tests (9 tests)
@@ -565,6 +569,9 @@ NexPrep-LMS/
 │   └── server.js                  # Express app entry point & server bootstrap
 ├── frontend/
 │   ├── scripts/
+│   │   ├── proctoring/
+│   │   │   ├── observationState.js # Pure DOM-independent CV stabilization state machine
+│   │   │   └── webcamCv.js        # Client-side MediaPipe Face Landmarker CV analyzer
 │   │   ├── auth.js                # Token management & authenticated fetch client
 │   │   ├── authGuard.js           # Route protection script for client views
 │   │   ├── chapter.js             # Chapter reading & completion toggle controller
@@ -575,11 +582,13 @@ NexPrep-LMS/
 │   │   ├── history.js             # Test history pagination controller
 │   │   ├── home.js                # Home view & continue-learning banner controller
 │   │   ├── login.js               # Local & Google login controller
+│   │   ├── mockTest.js            # JEE mock test & proctoring UI controller
 │   │   ├── profile.js             # User profile controller
 │   │   ├── register.js            # Local registration controller
 │   │   └── test.js                # Quiz state machine & 120s countdown timer
 │   ├── styles/
 │   │   ├── login.css              # Authentication views styling
+│   │   ├── mock-test.css          # JEE mock test & proctoring UI styling
 │   │   ├── profile.css            # Profile view styling
 │   │   └── style.css              # Main platform theme & responsive styling
 │   ├── chapter.html               # Chapter content reader view
