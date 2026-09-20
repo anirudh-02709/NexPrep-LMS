@@ -2,8 +2,8 @@
 
 [![NexPrep Backend CI](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml/badge.svg)](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml)
 ![Node Version](https://img.shields.io/badge/node-20.x%20%7C%2022.x-brightgreen)
-![Tests](https://img.shields.io/badge/tests-166%20passing-success)
-![Suites](https://img.shields.io/badge/suites-14%20passed-blue)
+![Tests](https://img.shields.io/badge/tests-209%20passing-success)
+![Suites](https://img.shields.io/badge/suites-15%20passed-blue)
 ![License](https://img.shields.io/badge/license-ISC-blue)
 
 NexPrep is a full-stack Learning Management System (LMS) engineered for students preparing for the Joint Entrance Examination (JEE). The platform delivers structured chapter-wise concept modules across Physics, Chemistry, and Mathematics, server-authoritative timed test assessments, persistent chapter progress telemetry with continue-learning resumption, timezone-independent consecutive practice streaks, and rule-based performance analytics.
@@ -33,6 +33,7 @@ The application couples a static, lightweight multi-page frontend hosted on Netl
 * **Client-Side Screen Monitoring & Intelligence (Phase 4)**: Captures user-selected display surfaces via `getDisplayMedia` and samples frames locally onto an in-memory 64×48 canvas without uploading raw images or video blobs. Computes deterministic multi-region spatial luminance and chromatic distributions to assess visual resemblance to the expected exam UI. Emits objective telemetry events (`SCREEN_SURFACE_IDENTIFIED`, `SCREEN_VIEW_STABLE`, `SCREEN_VIEW_CHANGED`, `SCREEN_VIEW_UNAVAILABLE`) governed by a DOM-independent temporal stabilization state machine with 1500ms hysteresis. Zero cheating scores, suspicion probabilities, or external AI inference.
 * **Event Correlation & Temporal Analysis Engine (Phase 5)**: Transforms raw, independent proctoring observations (browser telemetry, webcam CV, screen monitoring) into bounded temporal episodes and explicit pairwise observable relationships using a configurable 3000ms window. Features deterministic event categorization, bounded cluster growth (preventing infinite chaining), and authoritative answer-interaction context linkage (`answerInteractionContext`). Exposes an idempotent correlation API (`GET /api/mock-tests/:sessionId/proctoring/correlations`) while maintaining zero suspicion scores, cheating probabilities, or intent inference.
 * **Evidence-Grounded Proctoring Report & Reasoning (Phase 6)**: Transforms multi-stream telemetry and Phase 5 temporal correlation episodes into an objective, human-readable proctoring report (`GET /api/mock-tests/:sessionId/proctoring/report`). Implements a deterministic facts and reasoning engine with an append-only evidence model providing bidirectional traceability (`evidenceId` ↔ `episodeId` ↔ raw `eventIds`), historical hardware telemetry tracking (interruption counts independent of final states), explicit system limitations and unknowns, and post-exam UI with tab navigation and evidence drill-down modal. Strictly zero cheating scores, suspicion probabilities, or student intent inferences.
+* **Proctoring Evaluation, Benchmarking & Hardening (Phase 7)**: Comprehensive automated verification across 43 specialized evaluation scenarios covering the full temporal correlation matrix (Rules A through G), bounded clustering, full evidence graph traceability, safety assertions (zero suspicion/cheating scores), webcam/screen hysteresis and jitter noise suppression, 1,000-event synthetic load benchmark (< 10ms execution), false observation suppression, and zero academic grading regression. Explicitly documents manual evaluation boundaries (`NOT_MEASURED_AUTOMATICALLY`) for real-world client-side camera/screen hardware constraints.
 * **Granular Progress Telemetry & Resumption**: Chapter access and completion states are stored via atomic upsert operations (`$set`, `$setOnInsert`) on compound-unique indexed records (`{ user: 1, subject: 1, chapter: 1 }`). A dedicated continue-learning endpoint allows students to instantly resume their most recently studied module.
 * **Timezone-Independent Consecutive Practice Streaks**: An authoritative streak service calculates active daily practice streaks in UTC calendar days, providing deterministic streak evaluation across clients. The algorithm deduplicates multiple tests taken on the same calendar day, preserves the active streak if the user practiced yesterday but has not yet practiced today, and resets to 0 if both days are missed or if calendar gaps occur.
 * **Rule-Based Performance Analytics**: The dashboard computes overall score averages, subject-level performance percentages, detects strongest and weakest subject areas (triggering targeted study recommendations when averages fall below 60%), tracks 7-day consistency activity, and detects score trends across attempts.
@@ -520,7 +521,51 @@ npm test
   - Zero cheating score, suspicion score, or intent speculation safety verification
   - Academic score and grading isolation verification
   - Session owner access control (401 unauthenticated, 403 unauthorized)
+
+▶ Proctoring Evaluation & Hardening (Phase 7) (43 tests) ................ ✔ PASS
+  - Rules A through G temporal correlation matrix positive and boundary negative tests (delta 3000ms vs 3001ms)
+  - Raw telemetry append-only preservation without duplicate analytical relationships
+  - Deterministic timestamp tie-breaking via event ID sorting
+  - Cluster boundary enforcement (10s, 29s, 30s, >30s cluster split at maxClusterDurationMs = 30000ms)
+  - Full evidence graph traceability (timeline/relationship/technical obs -> evidenceId -> raw eventId)
+  - Cross-session data isolation & zero leakage verification
+  - Structural and semantic report safety (zero cheating/suspicion scores, zero intent speculation)
+  - Webcam CV state machine hysteresis, rapid jitter noise suppression, and clean stop teardown
+  - Screen state machine hysteresis, capture loss handling, and zero-luminance baseline rejection
+  - Event volume & bounded resource behavior (1,000 heartbeats -> 0 episodes, 50 repeated focus events)
+  - High-throughput synthetic benchmark: 1,000 events correlated & report synthesized in < 10ms
+  - False observation suppression: transient states strictly yield zero false events
+  - Academic scoring regression verification: proctoring telemetry has zero impact on +4/-1/0 evaluation
 ```
+
+---
+
+## Proctoring Evaluation & Hardening (Phase 7)
+
+Phase 7 hardens, benchmarks, and validates the end-to-end proctoring subsystem against deterministic stress, edge cases, and safety bounds.
+
+### 1. Verification Matrix & Automation Scope
+
+| Evaluation Area | Automated Test Coverage | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| **Temporal Correlation Matrix** | Rules A–G positive & boundary negative tests ($\Delta t \le 3000$ms vs $3001$ms) | **14 / 14 Passed** | Fully deterministic, tie-breaking by event ID |
+| **Episode Boundaries & Clustering** | 10s, 29s, 30s, and 35s split at `maxClusterDurationMs` ($30000$ms) | **6 / 6 Passed** | Quiet period ($\Delta t > 3000$ms) splits clusters |
+| **Evidence Traceability** | Bidirectional mapping: timeline / relationships $\to$ `evidenceId` $\to$ raw `eventId` | **4 / 4 Passed** | Cross-session isolation verified |
+| **Safety & Grounded Limitations** | Report schemas assert absence of suspicion scores, cheating probabilities, or intent claims | **2 / 2 Passed** | Semantic phrasing audited |
+| **Webcam CV State Machine** | Hysteresis thresholds ($300$ms, $1000$ms, $750$ms), jitter suppression, stop teardown | **6 / 6 Passed** | Pure logic tested in isolation |
+| **Screen Observation State Machine** | Hysteresis ($1000$ms, $1500$ms), similarity boundary ($0.75$), blank frame rejection | **5 / 5 Passed** | Baseline recalibration hardened |
+| **Volume & Resource Limits** | 1,000 heartbeats $\to$ 0 episodes; 50 repeated events $\to$ bounded relationships | **2 / 2 Passed** | Zero combinatorial explosion |
+| **Controlled Performance Benchmark**| 1,000 mixed raw events correlated and full report synthesized | **1 / 1 Passed** | **Execution time: ~9.8ms** |
+| **False Observation Suppression** | Transient deviation states filtered prior to hysteresis thresholds | **2 / 2 Passed** | Zero false observations emitted |
+| **Academic Scoring Isolation** | +4 / -1 / 0 score evaluation verified before and after proctoring runs | **1 / 1 Passed** | Zero regression or academic coupling |
+
+### 2. Manual Evaluation Requirements (`NOT_MEASURED_AUTOMATICALLY`)
+
+Certain real-world physical and browser-hardware constraints cannot be deterministically evaluated in automated headless Node.js tests and require manual browser validation:
+* **Physical Camera Hardware & Lighting**: Face Landmarker accuracy under severe backlighting, low-light underexposure, or extreme webcam viewing angles.
+* **Browser-Native Permission Dialogs**: User interaction timing and OS-level permission revocation for `getUserMedia()` and `getDisplayMedia()`.
+* **Hardware Video Acceleration & Resource Utilization**: Physical-device evaluation is required to measure sustained webcam/screen-processing frame rate, CPU/GPU utilization, thermal behavior, and long-session stability on representative hardware.
+* **Display Capture Surface Selection**: OS-dependent differences between capturing an Entire Screen, an Application Window, or a Browser Tab.
 
 ---
 
@@ -632,6 +677,7 @@ NexPrep-LMS/
 │   │   ├── indexingPagination.test.js # Indexing & pagination tests (5 tests)
 │   │   ├── mockTest.test.js       # JEE mock test scoring & lifecycle tests (15 tests)
 │   │   ├── proctoring.test.js     # Foundational proctoring & telemetry tests (19 tests)
+│   │   ├── proctoring_evaluation.test.js # Phase 7 proctoring evaluation & hardening suite (43 tests)
 │   │   ├── proctoring_report.test.js # Evidence-grounded report & reasoning tests (32 tests)
 │   │   ├── scoring.test.js        # Server-authoritative scoring tests (12 tests)
 │   │   ├── screen_observation.test.js # Screen monitoring state machine tests (6 tests)

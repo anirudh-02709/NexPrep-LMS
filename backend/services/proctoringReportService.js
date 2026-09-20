@@ -130,7 +130,18 @@ function extractEvidence(events = [], episodes = []) {
   });
 
   // 2. Extract OBSERVED evidence from raw events (excluding background heartbeats)
-  const nonHeartbeatEvents = events.filter((e) => e.type !== 'PROCTORING_HEARTBEAT');
+  // Apply deterministic chronological ordering with secondary ID tie-breaking
+  // NOTE: All raw events are preserved (no deletion or deduplication)
+  const nonHeartbeatEvents = events
+    .filter((e) => e.type !== 'PROCTORING_HEARTBEAT')
+    .sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      const idA = String(a._id || a.id || '');
+      const idB = String(b._id || b.id || '');
+      return idA.localeCompare(idB);
+    });
   nonHeartbeatEvents.forEach((ev, idx) => {
     const evId = String(ev._id || ev.id || `ev_${idx + 1}`);
     const episodeId = eventToEpisodeMap.get(evId) || null;
@@ -178,7 +189,16 @@ function extractEvidence(events = [], episodes = []) {
  * Computes objective summary statistics from authoritative session, event, and episode data.
  */
 function computeStatistics(events = [], episodes = [], mockSession = null, procSession = null) {
-  const nonHeartbeatEvents = events.filter((e) => e.type !== 'PROCTORING_HEARTBEAT');
+  const nonHeartbeatEvents = events
+    .filter((e) => e.type !== 'PROCTORING_HEARTBEAT')
+    .sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      const idA = String(a._id || a.id || '');
+      const idB = String(b._id || b.id || '');
+      return idA.localeCompare(idB);
+    });
 
   // Compute session duration
   let sessionDurationMs = 0;
@@ -186,9 +206,9 @@ function computeStatistics(events = [], episodes = [], mockSession = null, procS
     sessionDurationMs = Math.max(0, new Date(procSession.endedAt).getTime() - new Date(procSession.startedAt).getTime());
   } else if (procSession?.startedAt && procSession?.lastHeartbeatAt) {
     sessionDurationMs = Math.max(0, new Date(procSession.lastHeartbeatAt).getTime() - new Date(procSession.startedAt).getTime());
-  } else if (events.length >= 2) {
-    const firstTime = new Date(events[0].timestamp).getTime();
-    const lastTime = new Date(events[events.length - 1].timestamp).getTime();
+  } else if (nonHeartbeatEvents.length >= 2) {
+    const firstTime = new Date(nonHeartbeatEvents[0].timestamp).getTime();
+    const lastTime = new Date(nonHeartbeatEvents[nonHeartbeatEvents.length - 1].timestamp).getTime();
     sessionDurationMs = Math.max(0, lastTime - firstTime);
   }
 
@@ -404,6 +424,14 @@ function buildTechnicalObservations(events = [], evidenceList = []) {
 
   events
     .filter((e) => technicalTypes.includes(e.type))
+    .sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      const idA = String(a._id || a.id || '');
+      const idB = String(b._id || b.id || '');
+      return idA.localeCompare(idB);
+    })
     .forEach((e, idx) => {
       const evId = String(e._id || e.id || `tech_${idx + 1}`);
       const evidenceId = eventIdToEvidenceId.get(evId);

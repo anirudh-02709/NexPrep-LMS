@@ -239,11 +239,14 @@ function correlateEvents(events = [], options = {}) {
     return [];
   }
 
-  // Step 2: Ensure chronological order based strictly on server timestamp
+  // Step 2: Ensure chronological order based strictly on server timestamp, with deterministic ID tie-breaking
   const sortedEvents = [...meaningfulEvents].sort((a, b) => {
     const timeA = new Date(a.timestamp).getTime();
     const timeB = new Date(b.timestamp).getTime();
-    return timeA - timeB;
+    if (timeA !== timeB) return timeA - timeB;
+    const idA = String(a._id || a.id || '');
+    const idB = String(b._id || b.id || '');
+    return idA.localeCompare(idB);
   });
 
   // Step 3: Bounded Temporal Clustering

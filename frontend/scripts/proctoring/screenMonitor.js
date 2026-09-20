@@ -359,13 +359,15 @@
         // Discard raw canvas pixel data by clearing
         ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // Calibrate baseline signature on first valid frame
-        if (!this.baselineCalibrated) {
+        // Calibrate baseline signature on first valid frame (rejecting blank / zero-luminance unrendered frames)
+        if (!this.baselineCalibrated && currentSig && currentSig.meanLum >= 0.02) {
           this.baselineSignature = currentSig;
           this.baselineCalibrated = true;
         }
 
-        const similarity = this._computeSimilarity(currentSig, this.baselineSignature);
+        const similarity = this.baselineCalibrated
+          ? this._computeSimilarity(currentSig, this.baselineSignature)
+          : 1.0;
         const classification = similarity >= this.similarityThreshold ? 'EXPECTED_EXAM_VIEW' : 'CHANGED';
 
         if (this.stateMachine) {
@@ -456,6 +458,15 @@
       this.status = 'stopped';
       this.onStatusChange({ status: 'stopped' });
       console.log('[ScreenMonitor] Screen monitor stopped cleanly.');
+    }
+
+    /**
+     * Explicitly triggers baseline recalibration on the next valid frame.
+     */
+    recalibrateBaseline() {
+      this.baselineSignature = null;
+      this.baselineCalibrated = false;
+      console.log('[ScreenMonitor] Baseline recalibration requested.');
     }
 
     getStatus() {
