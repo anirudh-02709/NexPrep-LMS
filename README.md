@@ -2,8 +2,8 @@
 
 [![NexPrep Backend CI](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml/badge.svg)](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml)
 ![Node Version](https://img.shields.io/badge/node-20.x%20%7C%2022.x-brightgreen)
-![Tests](https://img.shields.io/badge/tests-61%20passing-success)
-![Suites](https://img.shields.io/badge/suites-8%20passed-blue)
+![Tests](https://img.shields.io/badge/tests-76%20passing-success)
+![Suites](https://img.shields.io/badge/suites-9%20passed-blue)
 ![License](https://img.shields.io/badge/license-ISC-blue)
 
 NexPrep is a full-stack Learning Management System (LMS) engineered for students preparing for the Joint Entrance Examination (JEE). The platform delivers structured chapter-wise concept modules across Physics, Chemistry, and Mathematics, server-authoritative timed test assessments, persistent chapter progress telemetry with continue-learning resumption, timezone-independent consecutive practice streaks, and rule-based performance analytics.
@@ -27,6 +27,7 @@ The application couples a static, lightweight multi-page frontend hosted on Netl
 
 * **Dual Authentication & Unified Identity**: Supports local credentials (passwords hashed with `bcryptjs`, work factor: 12 rounds) and Google OAuth (Firebase Client SDK). User accounts are linked across authentication providers by normalized email address (`lowercase` and `trim`).
 * **Server-Authoritative Test & Scoring Engine**: Correct answer keys are maintained exclusively on the server and are never delivered to the client during test generation (`GET /api/tests/questions`). Submissions are validated and graded server-side against an authoritative 120-question bank, preventing client-side answer-key inspection and client-side score fabrication.
+* **JEE Main Mock Test Subsystem**: Alongside existing chapter-wise practice tests, NexPrep includes a separate JEE Main Mock Test subsystem (`/api/mock-tests/*`, `MockTest`, `MockTestSession`, and `mock-test.html`). It features multi-section navigation across Physics, Chemistry, and Mathematics, server-authoritative countdown timing, +4 / -1 / 0 marking scheme, resilient attempt restoration upon browser refresh, and comprehensive post-exam analytics.
 * **Granular Progress Telemetry & Resumption**: Chapter access and completion states are stored via atomic upsert operations (`$set`, `$setOnInsert`) on compound-unique indexed records (`{ user: 1, subject: 1, chapter: 1 }`). A dedicated continue-learning endpoint allows students to instantly resume their most recently studied module.
 * **Timezone-Independent Consecutive Practice Streaks**: An authoritative streak service calculates active daily practice streaks in UTC calendar days, providing deterministic streak evaluation across clients. The algorithm deduplicates multiple tests taken on the same calendar day, preserves the active streak if the user practiced yesterday but has not yet practiced today, and resets to 0 if both days are missed or if calendar gaps occur.
 * **Rule-Based Performance Analytics**: The dashboard computes overall score averages, subject-level performance percentages, detects strongest and weakest subject areas (triggering targeted study recommendations when averages fall below 60%), tracks 7-day consistency activity, and detects score trends across attempts.

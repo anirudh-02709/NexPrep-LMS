@@ -18,6 +18,7 @@ const authRoutes = require('./routes/authRoutes');
 const healthRoutes = require('./routes/healthRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 const testRoutes = require('./routes/testRoutes');
+const mockTestRoutes = require('./routes/mockTestRoutes');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
 const app = express();
@@ -68,6 +69,7 @@ app.use(express.json({ limit: '100kb' }));
 app.use('/', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/tests', testRoutes);
+app.use('/api/mock-tests', mockTestRoutes);
 app.use('/api/progress', progressRoutes);
 
 app.use(notFound);

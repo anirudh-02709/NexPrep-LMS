@@ -66,6 +66,16 @@ function screenMain() {
         <div class="card-sub">4 chapters · 40 Qs</div>
       </div>
     </div>
+    <div class="card" style="margin-top: 24px; cursor: pointer; border-color: rgba(96,165,250,0.3); background: linear-gradient(135deg, rgba(20,40,80,0.5), rgba(12,21,37,0.7));" onclick="window.location.href='mock-test.html'">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+        <div>
+          <span style="font-size:0.78rem; font-weight:700; color:#60a5fa; text-transform:uppercase; letter-spacing:0.06em;">New Examination Subsystem</span>
+          <div style="font-size:1.25rem; font-weight:700; color:#fff; margin-top:4px;">🎯 JEE Main Mock Examination</div>
+          <div class="card-sub" style="margin-top:4px;">Full-length multi-subject test across Physics, Chemistry, and Mathematics with +4 / -1 negative marking</div>
+        </div>
+        <button class="btn-primary" style="padding:10px 18px; border-radius:10px; font-size:0.9rem; cursor:pointer;">Take Mock Test →</button>
+      </div>
+    </div>
   `;
 }
 
