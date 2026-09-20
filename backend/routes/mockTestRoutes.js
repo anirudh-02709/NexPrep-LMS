@@ -15,6 +15,7 @@ const {
   stopProctoring,
   getProctoringTimeline,
   getProctoringCorrelations,
+  getProctoringReport,
 } = require('../controllers/proctoringController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -38,5 +39,6 @@ router.post('/:sessionId/proctoring/heartbeat', protect, proctoringHeartbeat);
 router.post('/:sessionId/proctoring/stop', protect, stopProctoring);
 router.get('/:sessionId/proctoring', protect, getProctoringTimeline);
 router.get('/:sessionId/proctoring/correlations', protect, getProctoringCorrelations);
+router.get('/:sessionId/proctoring/report', protect, getProctoringReport);
 
 module.exports = router;

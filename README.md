@@ -2,8 +2,8 @@
 
 [![NexPrep Backend CI](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml/badge.svg)](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml)
 ![Node Version](https://img.shields.io/badge/node-20.x%20%7C%2022.x-brightgreen)
-![Tests](https://img.shields.io/badge/tests-134%20passing-success)
-![Suites](https://img.shields.io/badge/suites-13%20passed-blue)
+![Tests](https://img.shields.io/badge/tests-166%20passing-success)
+![Suites](https://img.shields.io/badge/suites-14%20passed-blue)
 ![License](https://img.shields.io/badge/license-ISC-blue)
 
 NexPrep is a full-stack Learning Management System (LMS) engineered for students preparing for the Joint Entrance Examination (JEE). The platform delivers structured chapter-wise concept modules across Physics, Chemistry, and Mathematics, server-authoritative timed test assessments, persistent chapter progress telemetry with continue-learning resumption, timezone-independent consecutive practice streaks, and rule-based performance analytics.
@@ -32,6 +32,7 @@ The application couples a static, lightweight multi-page frontend hosted on Netl
 * **Client-Side Webcam Computer Vision (Phase 3)**: Introduces on-device browser computer vision via `@mediapipe/tasks-vision` Face Landmarker. Strictly processes video frames locally without uploading raw media or making cloud vision API calls. Emits objective telemetry observations (`FACE_PRESENT`, `FACE_ABSENT`, `MULTIPLE_FACES`, `HEAD_POSE_DEVIATION`) stabilized by a pure, DOM-independent observation state machine with configurable temporal hysteresis. Contains zero subjective cheating judgments or suspicion scores.
 * **Client-Side Screen Monitoring & Intelligence (Phase 4)**: Captures user-selected display surfaces via `getDisplayMedia` and samples frames locally onto an in-memory 64×48 canvas without uploading raw images or video blobs. Computes deterministic multi-region spatial luminance and chromatic distributions to assess visual resemblance to the expected exam UI. Emits objective telemetry events (`SCREEN_SURFACE_IDENTIFIED`, `SCREEN_VIEW_STABLE`, `SCREEN_VIEW_CHANGED`, `SCREEN_VIEW_UNAVAILABLE`) governed by a DOM-independent temporal stabilization state machine with 1500ms hysteresis. Zero cheating scores, suspicion probabilities, or external AI inference.
 * **Event Correlation & Temporal Analysis Engine (Phase 5)**: Transforms raw, independent proctoring observations (browser telemetry, webcam CV, screen monitoring) into bounded temporal episodes and explicit pairwise observable relationships using a configurable 3000ms window. Features deterministic event categorization, bounded cluster growth (preventing infinite chaining), and authoritative answer-interaction context linkage (`answerInteractionContext`). Exposes an idempotent correlation API (`GET /api/mock-tests/:sessionId/proctoring/correlations`) while maintaining zero suspicion scores, cheating probabilities, or intent inference.
+* **Evidence-Grounded Proctoring Report & Reasoning (Phase 6)**: Transforms multi-stream telemetry and Phase 5 temporal correlation episodes into an objective, human-readable proctoring report (`GET /api/mock-tests/:sessionId/proctoring/report`). Implements a deterministic facts and reasoning engine with an append-only evidence model providing bidirectional traceability (`evidenceId` ↔ `episodeId` ↔ raw `eventIds`), historical hardware telemetry tracking (interruption counts independent of final states), explicit system limitations and unknowns, and post-exam UI with tab navigation and evidence drill-down modal. Strictly zero cheating scores, suspicion probabilities, or student intent inferences.
 * **Granular Progress Telemetry & Resumption**: Chapter access and completion states are stored via atomic upsert operations (`$set`, `$setOnInsert`) on compound-unique indexed records (`{ user: 1, subject: 1, chapter: 1 }`). A dedicated continue-learning endpoint allows students to instantly resume their most recently studied module.
 * **Timezone-Independent Consecutive Practice Streaks**: An authoritative streak service calculates active daily practice streaks in UTC calendar days, providing deterministic streak evaluation across clients. The algorithm deduplicates multiple tests taken on the same calendar day, preserves the active streak if the user practiced yesterday but has not yet practiced today, and resets to 0 if both days are missed or if calendar gaps occur.
 * **Rule-Based Performance Analytics**: The dashboard computes overall score averages, subject-level performance percentages, detects strongest and weakest subject areas (triggering targeted study recommendations when averages fall below 60%), tracks 7-day consistency activity, and detects score trends across attempts.
@@ -302,7 +303,7 @@ The dashboard service (`GET /api/tests/dashboard`) processes student test histor
 
 ## REST API Reference
 
-The backend provides 16 REST endpoints structured across Health, Authentication, Progress, and Tests.
+The backend provides 28 REST endpoints structured across Health, Authentication, Progress, Chapter Tests, and JEE Mock Tests / Proctoring.
 
 | Method | Endpoint | Description | Access / Auth |
 | :--- | :--- | :--- | :--- |
@@ -322,6 +323,18 @@ The backend provides 16 REST endpoints structured across Health, Authentication,
 | `POST` | `/api/tests/result` | Submit test answers for authoritative server grading | Bearer JWT |
 | `GET` | `/api/tests/history` | Retrieve paginated test attempt history | Bearer JWT (`?page=1&limit=5`) |
 | `GET` | `/api/tests/dashboard` | Retrieve performance metrics, insights, and streak | Bearer JWT |
+| `GET` | `/api/mock-tests` | List available JEE Main mock tests & user's active session | Bearer JWT |
+| `GET` | `/api/mock-tests/:testIdOrSlug` | Retrieve sanitized mock test details and questions | Bearer JWT |
+| `POST` | `/api/mock-tests/:testIdOrSlug/start` | Start or resume a server-authoritative mock test session | Bearer JWT |
+| `POST` | `/api/mock-tests/:sessionId/answer` | Autosave answer selection / review status | Bearer JWT |
+| `POST` | `/api/mock-tests/:sessionId/submit` | Submit completed exam for authoritative scoring | Bearer JWT |
+| `GET` | `/api/mock-tests/:sessionId/result` | Retrieve evaluated score breakdown and question review | Bearer JWT |
+| `POST` | `/api/mock-tests/:sessionId/proctoring/start` | Initialize proctoring session for active exam attempt | Bearer JWT |
+| `POST` | `/api/mock-tests/:sessionId/proctoring/event` | Append immutable telemetry / observation event | Bearer JWT |
+| `POST` | `/api/mock-tests/:sessionId/proctoring/heartbeat` | Synchronize unified 30s session & proctoring heartbeat | Bearer JWT |
+| `POST` | `/api/mock-tests/:sessionId/proctoring/stop` | Terminate proctoring session on exam submission | Bearer JWT |
+| `GET` | `/api/mock-tests/:sessionId/proctoring/correlations` | Retrieve temporal correlation episodes & relationships | Bearer JWT |
+| `GET` | `/api/mock-tests/:sessionId/proctoring/report` | Retrieve evidence-grounded proctoring report & statistics | Bearer JWT |
 
 ---
 
@@ -371,7 +384,7 @@ Dynamic application data is stored in MongoDB Atlas across three schemas with ex
 
 The backend is verified through an automated test suite implemented natively using Node.js's built-in test runner (`node:test`, `node:assert`). It operates with zero external testing dependencies.
 
-* **61 automated tests across 8 test suites, all currently passing**
+* **166 automated tests across 14 test suites, all currently passing**
 * **GitHub Actions CI** runs on every push and pull request targeting `main`
 
 ```bash
@@ -459,6 +472,54 @@ npm test
   - Progress model rejects subjects/chapters outside taxonomy enum
   - updateProgress controller rejects unknown subject/chapter with HTTP 400
   - getChapterStatus controller rejects invalid query parameters with HTTP 400
+
+▶ JEE Mock Test Scoring, Sessions & Lifecycle (15 tests) ................ ✔ PASS
+  - MockTest schema constraints and negative marking validation (+4 / -1 / 0)
+  - MockTestSession server-authoritative timer and expiry logic
+  - Multi-section questions serving with sanitized answer keys
+  - Auto-save answers and marked-for-review state persistence
+  - Refresh and resume attempt restoration
+  - Authoritative evaluation with positive/negative score calculation
+
+▶ Foundational Proctoring & Browser Telemetry (19 tests) ............... ✔ PASS
+  - ProctoringSession and ProctoringEvent immutable schemas
+  - Client readiness flow verification (camera, mic, screen, fullscreen)
+  - Debounced browser visibility change and window focus loss/regain telemetry
+  - Fullscreen exit event tracking with authoritative server timestamp
+  - Hardware track onended event monitoring (camera/microphone/screen stopped)
+  - Non-duplication of heartbeats in event log (lastHeartbeatAt tracking)
+
+▶ Webcam Computer Vision State Machine (8 tests) ....................... ✔ PASS
+  - Pure DOM-independent observation state machine hysteresis
+  - FACE_PRESENT stabilization (300ms confirmation window)
+  - FACE_ABSENT transient suppression (1000ms confirmation threshold)
+  - MULTIPLE_FACES multi-person detection (500ms confirmation threshold)
+  - HEAD_POSE_DEVIATION yaw/pitch angle tracking (1000ms confirmation)
+  - Flush open episodes with final durations on analyzer stop
+
+▶ Screen Observation State Machine (6 tests) ........................... ✔ PASS
+  - In-memory canvas sampling with multi-region perceptual hashing
+  - SCREEN_VIEW_STABLE state generation for expected exam view
+  - Transient visual deviation filtering (< 1500ms hysteresis)
+  - SCREEN_VIEW_CHANGED episode emission with exact duration tracking
+  - SCREEN_VIEW_UNAVAILABLE handling upon screen share stream end
+  - Flush active deviation episodes cleanly upon pipeline stop
+
+▶ Event Correlation & Temporal Analysis (25 tests) ..................... ✔ PASS
+  - Deterministic event categorization across media, browser, CV, and screen
+  - Bounded temporal clustering (3000ms window, 60000ms max duration)
+  - Multi-stream pairwise relationship detection (Rules A through G)
+  - Server-authoritative answer interaction context linkage (answerInteractionContext)
+  - Idempotent correlation synchronization and cross-session isolation
+
+▶ Evidence-Grounded Proctoring Report & Reasoning (32 tests) ........... ✔ PASS
+  - Extraction of OBSERVED and DERIVED evidence with unique evidenceIds
+  - Bidirectional traceability from statements to episodes to raw event IDs
+  - Cumulative interruption counts tracking (camera, screen, fullscreen)
+  - Explicit system limitations and unknowns grounding
+  - Zero cheating score, suspicion score, or intent speculation safety verification
+  - Academic score and grading isolation verification
+  - Session owner access control (401 unauthenticated, 403 unauthorized)
 ```
 
 ---
@@ -560,6 +621,7 @@ NexPrep-LMS/
 │   ├── scripts/
 │   │   └── buildTaxonomy.js       # Build script compiling backend taxonomy to frontend
 │   ├── services/
+│   │   ├── proctoringReportService.js # Deterministic evidence-grounded report engine
 │   │   ├── streakService.js       # Authoritative UTC streak calculation
 │   │   ├── temporalCorrelationService.js # Deterministic episode correlation engine
 │   │   └── testScoring.js         # Question sanitization & test evaluation
@@ -570,6 +632,7 @@ NexPrep-LMS/
 │   │   ├── indexingPagination.test.js # Indexing & pagination tests (5 tests)
 │   │   ├── mockTest.test.js       # JEE mock test scoring & lifecycle tests (15 tests)
 │   │   ├── proctoring.test.js     # Foundational proctoring & telemetry tests (19 tests)
+│   │   ├── proctoring_report.test.js # Evidence-grounded report & reasoning tests (32 tests)
 │   │   ├── scoring.test.js        # Server-authoritative scoring tests (12 tests)
 │   │   ├── screen_observation.test.js # Screen monitoring state machine tests (6 tests)
 │   │   ├── security.test.js       # Helmet, rate limiting & DNS tests (4 tests)

@@ -56,6 +56,13 @@ const mockState = {
   // ─── Phase 4: Screen Monitoring & Intelligence State ───
   screenMonitor: null,
   screenAiStatus: 'off', // 'off' | 'initializing' | 'active' | 'unavailable' | 'stopped'
+
+  // ─── Phase 6: Proctoring Report State ───
+  resultTab: 'academic', // 'academic' | 'proctoring'
+  proctoringReport: null,
+  reportLoading: false,
+  reportError: null,
+  activeEvidenceModal: null, // array of evidence items to display
 };
 
 function attachExamWebcamVideo() {
@@ -641,6 +648,25 @@ function renderResultScreen() {
     `;
   }
 
+  const isAcademic = mockState.resultTab !== 'proctoring';
+
+  return `
+    <div class="result-nav-tabs">
+      <button class="result-nav-tab ${isAcademic ? 'active' : ''}" onclick="switchResultTab('academic')">
+        Academic Score & Review
+      </button>
+      <button class="result-nav-tab ${!isAcademic ? 'active' : ''}" onclick="switchResultTab('proctoring')">
+        Proctoring Telemetry Report
+      </button>
+    </div>
+
+    ${isAcademic ? renderAcademicResultContent(res, test) : renderProctoringReportContent()}
+
+    ${mockState.activeEvidenceModal ? renderEvidenceModal() : ''}
+  `;
+}
+
+function renderAcademicResultContent(res, test) {
   const scoreSign = res.score > 0 ? `+${res.score}` : `${res.score}`;
 
   // Section score cards
@@ -761,6 +787,248 @@ function renderResultScreen() {
 
     <div class="review-container">
       ${reviewItems || '<p class="page-message">No question review available.</p>'}
+    </div>
+  `;
+}
+
+function renderProctoringReportContent() {
+  if (mockState.reportLoading) {
+    return `
+      <div style="text-align:center; padding:60px 20px;">
+        <h2>Generating Proctoring Telemetry Report...</h2>
+        <p class="page-message">Correlating multi-stream observations and temporal episodes...</p>
+      </div>
+    `;
+  }
+
+  if (mockState.reportError) {
+    return `
+      <div style="text-align:center; padding:40px 20px;">
+        <p class="page-message" style="color:#f87171; margin-bottom:16px;">${escapeHtml(mockState.reportError)}</p>
+        <button class="btn-start-mock" onclick="fetchProctoringReport()">Retry Loading Report</button>
+      </div>
+    `;
+  }
+
+  const report = mockState.proctoringReport;
+  if (!report) {
+    return `
+      <div style="text-align:center; padding:40px 20px;">
+        <p class="page-message">Proctoring report not yet loaded.</p>
+        <button class="btn-start-mock" onclick="fetchProctoringReport()">Load Proctoring Report</button>
+      </div>
+    `;
+  }
+
+  const overview = report.overview || {};
+  const procOverview = report.proctoringOverview || {};
+  const stats = report.statistics || {};
+  const timeline = report.timeline || [];
+  const relationships = report.relationships || [];
+  const techObs = report.technicalObservations || [];
+  const unknowns = report.limitationsAndUnknowns || [];
+
+  const startStr = overview.examStartedAt ? new Date(overview.examStartedAt).toLocaleString() : 'N/A';
+  const endStr = overview.examEndedAt ? new Date(overview.examEndedAt).toLocaleString() : 'In Progress';
+  const durationStr = overview.examDurationSeconds ? `${Math.floor(overview.examDurationSeconds / 60)}m ${overview.examDurationSeconds % 60}s` : '0s';
+
+  const fmtSeconds = (ms) => ms ? `${(ms / 1000).toFixed(1)}s` : '0s';
+
+  // Hardware & Environment Observations
+  const techObsHtml = techObs.length > 0 ? `
+    <div class="report-section">
+      <h3>Hardware & Environment Observations</h3>
+      ${techObs.map((obs) => `
+        <div class="report-technical-card">
+          <div class="report-card-header">
+            <strong style="color:#f8fafc;">${escapeHtml(obs.title)}</strong>
+            ${obs.evidenceIds && obs.evidenceIds.length > 0 ? `
+              <button class="btn-view-evidence" onclick="viewEvidenceModal('${obs.evidenceIds.join(',')}')">
+                View Evidence (${obs.evidenceIds.length})
+              </button>
+            ` : ''}
+          </div>
+          <p class="report-narrative" style="margin-bottom:0;">${escapeHtml(obs.description)}</p>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
+  // Chronological Episodes Timeline
+  const timelineHtml = timeline.length > 0 ? timeline.map((ep) => {
+    const timeStr = ep.startedAt ? new Date(ep.startedAt).toLocaleTimeString() : '';
+    const durStr = ep.durationMs ? `${(ep.durationMs / 1000).toFixed(1)}s` : 'Instantaneous';
+    const tagsHtml = (ep.signalTags || []).map((tag) => {
+      let tagClass = '';
+      if (tag.includes('camera') || tag.includes('face') || tag.includes('pose')) tagClass = 'camera';
+      else if (tag.includes('screen')) tagClass = 'screen';
+      else if (tag.includes('media') || tag.includes('fullscreen')) tagClass = 'media';
+      return `<span class="signal-tag ${tagClass}">${escapeHtml(tag)}</span>`;
+    }).join(' ');
+
+    return `
+      <div class="report-timeline-card">
+        <div class="report-card-header">
+          <div>
+            <strong style="color:#f1f5f9; font-size:0.95rem;">${escapeHtml(ep.type)}</strong>
+            <span style="color:#94a3b8; font-size:0.8rem; margin-left:10px;">${timeStr} · Duration: ${durStr}</span>
+          </div>
+          ${ep.evidenceIds && ep.evidenceIds.length > 0 ? `
+            <button class="btn-view-evidence" onclick="viewEvidenceModal('${ep.evidenceIds.join(',')}')">
+              View Evidence (${ep.evidenceIds.length})
+            </button>
+          ` : ''}
+        </div>
+        ${tagsHtml ? `<div class="report-signal-tags">${tagsHtml}</div>` : ''}
+        <p class="report-narrative">${escapeHtml(ep.narrative)}</p>
+        ${ep.questionContext ? `<div style="font-size:0.8rem; color:#94a3b8;">${escapeHtml(ep.questionContext)}</div>` : ''}
+      </div>
+    `;
+  }).join('') : '<p class="page-message">No notable temporal episodes recorded during this exam session.</p>';
+
+  // Multi-stream Temporal Relationships
+  const relationshipsHtml = relationships.length > 0 ? relationships.map((rel) => {
+    const timeStr = rel.startedAt ? new Date(rel.startedAt).toLocaleTimeString() : '';
+    const durStr = rel.durationMs ? `${(rel.durationMs / 1000).toFixed(1)}s` : '0s';
+    const deltaStr = rel.deltaTimeMs !== null && rel.deltaTimeMs !== undefined ? ` · Δt: ${(rel.deltaTimeMs / 1000).toFixed(1)}s` : '';
+
+    return `
+      <div class="report-relationship-card">
+        <div class="report-card-header">
+          <div>
+            <strong style="color:#a78bfa; font-size:0.95rem;">${escapeHtml(rel.type)}</strong>
+            <span style="color:#94a3b8; font-size:0.8rem; margin-left:10px;">${timeStr} · Overlap: ${durStr}${deltaStr}</span>
+          </div>
+          ${rel.evidenceIds && rel.evidenceIds.length > 0 ? `
+            <button class="btn-view-evidence" onclick="viewEvidenceModal('${rel.evidenceIds.join(',')}')">
+              View Linked Evidence (${rel.evidenceIds.length})
+            </button>
+          ` : ''}
+        </div>
+        <p class="report-narrative" style="margin-bottom:0;">${escapeHtml(rel.description)}</p>
+      </div>
+    `;
+  }).join('') : '<p class="page-message">No multi-stream concurrent or causal relationships detected.</p>';
+
+  // Limitations & Explicit Unknowns
+  const unknownsHtml = unknowns.map((u) => `
+    <div class="report-unknown-item">
+      <strong style="color:#93c5fd;">${escapeHtml(u.area)}:</strong> ${escapeHtml(u.statement)}
+    </div>
+  `).join('');
+
+  return `
+    <div class="report-header-card">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
+        <div>
+          <span class="badge-pill badge-jee">Evidence-Grounded Proctoring Report</span>
+          <h2 style="margin:8px 0 4px 0;">${escapeHtml(overview.testTitle || 'JEE Mock Test')}</h2>
+          <div style="color:#94a3b8; font-size:0.85rem;">
+            Candidate: <strong>${escapeHtml(overview.studentName || 'Student')}</strong> · Exam Status: <strong>${escapeHtml(overview.finalStatus || 'completed')}</strong>
+          </div>
+        </div>
+        <button class="back-btn" onclick="backToList()"><span class="back-icon" aria-hidden="true"></span><span>Return to Mock Tests</span></button>
+      </div>
+
+      <div style="display:flex; gap:20px; flex-wrap:wrap; font-size:0.84rem; color:#cbd5e1; margin-bottom:16px; border-top:1px solid var(--border); padding-top:12px;">
+        <div>Started: <strong>${startStr}</strong></div>
+        <div>Ended: <strong>${endStr}</strong></div>
+        <div>Duration: <strong>${durationStr}</strong></div>
+        <div>Camera: <strong>${escapeHtml(procOverview.cameraState || 'inactive')} (${procOverview.cameraStopCount || 0} stops)</strong></div>
+        <div>Screen: <strong>${escapeHtml(procOverview.screenShareState || 'inactive')} (${procOverview.screenShareStopCount || 0} stops)</strong></div>
+        <div>Fullscreen: <strong>${escapeHtml(procOverview.fullscreenState || 'inactive')} (${procOverview.fullscreenExitCount || 0} exits)</strong></div>
+      </div>
+
+      <div style="background:rgba(30, 41, 59, 0.5); border:1px solid #334155; border-radius:8px; padding:12px 16px; font-size:0.82rem; color:#94a3b8; line-height:1.5;">
+        ℹ️ <strong>System Notice:</strong> This report presents deterministic facts, temporal correlation episodes, and technical observations recorded during the examination. In accordance with strict fairness and integrity policies, the system does not calculate cheating probabilities, assign suspicion scores, or speculate on student intent.
+      </div>
+    </div>
+
+    <div class="report-metrics-grid">
+      <div class="report-metric-card">
+        <span>Raw Events</span>
+        <strong>${stats.totalRawEvents || 0}</strong>
+      </div>
+      <div class="report-metric-card">
+        <span>Temporal Episodes</span>
+        <strong>${stats.totalTemporalEpisodes || 0}</strong>
+      </div>
+      <div class="report-metric-card">
+        <span>Cross-Stream Correlations</span>
+        <strong>${stats.totalRelationships || 0}</strong>
+      </div>
+      <div class="report-metric-card">
+        <span>Longest Focus Loss</span>
+        <strong>${fmtSeconds(stats.longestFocusLossMs)}</strong>
+      </div>
+      <div class="report-metric-card">
+        <span>Longest Face Absence</span>
+        <strong>${fmtSeconds(stats.longestFaceAbsentMs)}</strong>
+      </div>
+      <div class="report-metric-card">
+        <span>Longest Screen Deviation</span>
+        <strong>${fmtSeconds(stats.longestScreenViewChangedMs)}</strong>
+      </div>
+    </div>
+
+    ${techObsHtml}
+
+    <div class="report-section">
+      <h3>Chronological Episode Timeline</h3>
+      ${timelineHtml}
+    </div>
+
+    <div class="report-section">
+      <h3>Multi-Stream Temporal Correlations</h3>
+      ${relationshipsHtml}
+    </div>
+
+    <div class="report-section">
+      <h3>System Limitations & Explicit Unknowns</h3>
+      <div class="report-unknowns-card">
+        ${unknownsHtml}
+      </div>
+    </div>
+  `;
+}
+
+function renderEvidenceModal() {
+  const items = mockState.activeEvidenceModal || [];
+  return `
+    <div class="modal-overlay" onclick="closeEvidenceModal()">
+      <div class="modal-card" style="max-width:720px; width:90%;" onclick="event.stopPropagation()">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <h3 style="margin:0;">Evidence Drill-Down (${items.length} records)</h3>
+          <button onclick="closeEvidenceModal()" style="background:transparent; border:none; color:#94a3b8; font-size:1.4rem; cursor:pointer;">&times;</button>
+        </div>
+        <p style="color:#94a3b8; font-size:0.84rem; margin:0 0 16px 0;">
+          Raw telemetry observations and derived temporal records supporting this report item.
+        </p>
+        <div class="evidence-modal-body">
+          ${items.length === 0 ? '<p class="page-message">No raw records found for this reference.</p>' : ''}
+          ${items.map((ev) => {
+            const timeStr = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : 'N/A';
+            const durStr = ev.durationMs ? `${(ev.durationMs / 1000).toFixed(1)}s` : '0s';
+            return `
+              <div class="evidence-entry">
+                <div class="evidence-entry-header">
+                  <span><strong>${escapeHtml(ev.evidenceId)}</strong> · Nature: <span style="color:#38bdf8;">${escapeHtml(ev.nature)}</span></span>
+                  <span>${timeStr}</span>
+                </div>
+                <div style="color:#cbd5e1; margin-bottom:6px;">
+                  Source: <strong>${escapeHtml(ev.source)}</strong> | Type: <strong>${escapeHtml(ev.type)}</strong> | Duration: <strong>${durStr}</strong>
+                </div>
+                ${ev.metadata && Object.keys(ev.metadata).length > 0 ? `
+                  <pre>${escapeHtml(JSON.stringify(ev.metadata, null, 2))}</pre>
+                ` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+        <div style="text-align:right; margin-top:16px;">
+          <button class="btn-exam" onclick="closeEvidenceModal()">Close</button>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -1494,6 +1762,9 @@ async function confirmSubmit() {
       mockState.selectedMockTest = resResponse.data.mockTest;
     }
 
+    // Prefetch proctoring report in background
+    fetchProctoringReport();
+
     mockState.loading = false;
     render();
   } catch (error) {
@@ -1502,6 +1773,60 @@ async function confirmSubmit() {
     render();
   }
 }
+
+// ─── Phase 6 Actions ─────────────────────────────────────
+
+function switchResultTab(tab) {
+  mockState.resultTab = tab;
+  if (tab === 'proctoring' && !mockState.proctoringReport && !mockState.reportLoading) {
+    fetchProctoringReport();
+  } else {
+    render();
+  }
+}
+
+async function fetchProctoringReport() {
+  if (!mockState.sessionId) return;
+  mockState.reportLoading = true;
+  mockState.reportError = null;
+  render();
+
+  try {
+    const { ok, data } = await apiFetch(`/api/mock-tests/${mockState.sessionId}/proctoring/report`);
+    mockState.reportLoading = false;
+    if (ok && data && data.success && data.report) {
+      mockState.proctoringReport = data.report;
+    } else {
+      mockState.reportError = data?.message || 'Failed to load proctoring report.';
+    }
+  } catch (err) {
+    mockState.reportLoading = false;
+    mockState.reportError = 'Network error loading proctoring report.';
+  }
+  render();
+}
+
+function viewEvidenceModal(evidenceIdsStr) {
+  if (!mockState.proctoringReport || !mockState.proctoringReport.evidence) return;
+  const ids = (evidenceIdsStr || '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  const matched = mockState.proctoringReport.evidence.filter((e) => ids.includes(e.evidenceId));
+  mockState.activeEvidenceModal = matched;
+  render();
+}
+
+function closeEvidenceModal() {
+  mockState.activeEvidenceModal = null;
+  render();
+}
+
+// Global window attachments for inline template handlers
+window.switchResultTab = switchResultTab;
+window.fetchProctoringReport = fetchProctoringReport;
+window.viewEvidenceModal = viewEvidenceModal;
+window.closeEvidenceModal = closeEvidenceModal;
 
 // ─── Initialize ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {

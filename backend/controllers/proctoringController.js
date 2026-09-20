@@ -537,6 +537,65 @@ const getProctoringCorrelations = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/mock-tests/:sessionId/proctoring/report
+ * Generates an evidence-grounded, deterministic proctoring report for the session owner.
+ */
+const getProctoringReport = async (req, res, next) => {
+  try {
+    const { sessionId } = req.params;
+
+    const mockSession = await MockTestSession.findById(sessionId);
+    if (!mockSession) {
+      res.status(404);
+      throw new Error('Mock test session not found.');
+    }
+
+    if (mockSession.user.toString() !== req.user.id.toString()) {
+      res.status(403);
+      throw new Error('Not authorized to access this exam session.');
+    }
+
+    const procSession = await ProctoringSession.findOne({ mockTestSession: mockSession._id });
+    if (!procSession) {
+      res.status(404);
+      throw new Error('Associated proctoring session not found.');
+    }
+
+    const MockTest = require('../models/MockTest');
+    let mockTest = null;
+    if (mockSession.mockTest) {
+      const mockTestQuery = MockTest.findById(mockSession.mockTest);
+      mockTest = mockTestQuery && typeof mockTestQuery.lean === 'function' ? await mockTestQuery.lean() : await mockTestQuery;
+    }
+
+    // Load raw events
+    let eventsQuery = ProctoringEvent.find({ proctoringSession: procSession._id });
+    if (typeof eventsQuery.sort === 'function') {
+      eventsQuery = eventsQuery.sort({ timestamp: 1 });
+    }
+    const events = (eventsQuery && typeof eventsQuery.lean === 'function' ? await eventsQuery.lean() : await eventsQuery) || [];
+
+    // Synchronize Phase 5 episodes
+    const { syncSessionEpisodes } = require('../services/temporalCorrelationService');
+    const { episodes } = await syncSessionEpisodes(mockSession._id);
+
+    // Synthesize deterministic report
+    const { synthesizeReport } = require('../services/proctoringReportService');
+    const report = synthesizeReport(mockSession, procSession, mockTest, events, episodes);
+
+    return res.status(200).json({
+      success: true,
+      sessionId: mockSession._id,
+      generatedAt: new Date().toISOString(),
+      report,
+    });
+  } catch (error) {
+    if (error.statusCode) res.status(error.statusCode);
+    return next(error);
+  }
+};
+
 module.exports = {
   startProctoring,
   recordProctoringEvent,
@@ -544,4 +603,5 @@ module.exports = {
   stopProctoring,
   getProctoringTimeline,
   getProctoringCorrelations,
+  getProctoringReport,
 };
