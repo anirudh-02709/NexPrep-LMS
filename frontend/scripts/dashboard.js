@@ -134,8 +134,48 @@ window.onload = async function () {
     }
   };
 
+  const loadMockTestStats = async () => {
+    const mockTotalAttemptsEl = document.getElementById('mock-total-attempts');
+    const mockEvaluatedAttemptsEl = document.getElementById('mock-evaluated-attempts');
+    const mockAveragePercentageEl = document.getElementById('mock-average-percentage');
+    const mockBestPercentageEl = document.getElementById('mock-best-percentage');
+    const mockUnderReviewEl = document.getElementById('mock-under-review');
+    const mockTechReviewEl = document.getElementById('mock-tech-review');
+
+    if (!mockTotalAttemptsEl) return;
+
+    try {
+      const { ok, data } = await apiFetch('/api/mock-tests/stats');
+      if (!ok || !data || !data.stats) {
+        return;
+      }
+
+      const stats = data.stats;
+      mockTotalAttemptsEl.textContent = stats.totalAttempts ?? 0;
+      mockEvaluatedAttemptsEl.textContent = stats.evaluatedAttempts ?? 0;
+
+      if (stats.evaluatedAttempts > 0 && stats.averagePercentage !== null && stats.averagePercentage !== undefined) {
+        mockAveragePercentageEl.textContent = `${stats.averagePercentage}%`;
+      } else {
+        mockAveragePercentageEl.textContent = 'N/A';
+      }
+
+      if (stats.evaluatedAttempts > 0 && stats.bestPercentage !== null && stats.bestPercentage !== undefined) {
+        mockBestPercentageEl.textContent = `${stats.bestPercentage}%`;
+      } else {
+        mockBestPercentageEl.textContent = 'N/A';
+      }
+
+      mockUnderReviewEl.textContent = stats.pendingReviewCount ?? 0;
+      mockTechReviewEl.textContent = stats.technicalReviewCount ?? 0;
+    } catch (err) {
+      console.warn('[Dashboard] Could not load mock test stats:', err);
+    }
+  };
+
   await Promise.all([
     loadTestDashboard(),
     loadChapterProgress(),
+    loadMockTestStats(),
   ]);
 };

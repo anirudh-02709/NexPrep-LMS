@@ -36,7 +36,12 @@
 <script src="scripts/authGuard.js"></script>
 <script src="scripts/config.js"></script>
 <!-- Computer Vision & Proctoring (Phase 3 & Phase 4) -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.js" crossorigin="anonymous"></script>
+<script type="module">
+  import { FilesetResolver, FaceLandmarker } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs';
+  window.FilesetResolver = FilesetResolver;
+  window.FaceLandmarker = FaceLandmarker;
+  window.tasksVision = { FilesetResolver, FaceLandmarker };
+</script>
 <script src="scripts/proctoring/observationState.js"></script>
 <script src="scripts/proctoring/webcamCv.js"></script>
 <script src="scripts/proctoring/screenObservationState.js"></script>

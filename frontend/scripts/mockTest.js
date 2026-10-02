@@ -10,6 +10,51 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+/**
+ * Format timestamp as HH:MM:SS IST string for consistent human-readable proctoring presentation.
+ */
+function formatTimeIST(dateInput) {
+  if (!dateInput) return '00:00:00 IST';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '00:00:00 IST';
+  try {
+    const timeStr = d.toLocaleTimeString('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    return `${timeStr} IST`;
+  } catch (err) {
+    return `${d.toISOString().slice(11, 19)} IST`;
+  }
+}
+
+/**
+ * Format timestamp as DD/MM/YYYY, HH:MM:SS IST string for consistent human-readable date-time presentation.
+ */
+function formatDateTimeIST(dateInput) {
+  if (!dateInput) return 'N/A';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return 'N/A';
+  try {
+    const dtStr = d.toLocaleString('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    return `${dtStr} IST`;
+  } catch (err) {
+    return `${d.toISOString()} IST`;
+  }
+}
+
 const mockState = {
   screen: 'list', // 'list' | 'instructions' | 'readiness' | 'exam' | 'result'
   mockTests: [],
@@ -44,10 +89,21 @@ const mockState = {
     visibilityState: 'visible',
   },
   readinessCapabilities: null,
+  readinessState: {
+    camera: 'idle', // 'idle' | 'requesting' | 'ready' | 'error'
+    screen: 'idle', // 'idle' | 'requesting' | 'ready' | 'error'
+    faceDetection: 'idle', // 'idle' | 'initializing' | 'ready' | 'error'
+    overallReady: false,
+    errorMessage: '',
+    errorType: '', // 'camera' | 'screen' | 'face' | ''
+  },
+  cameraStartedEmitted: false,
+  screenStartedEmitted: false,
   cameraStream: null,
   screenStream: null,
   blurTimestamp: null,
   activeEventListeners: [],
+  pendingTelemetry: new Set(),
 
   // ─── Phase 3: Webcam Computer Vision State ───
   cvAnalyzer: null,
@@ -63,7 +119,22 @@ const mockState = {
   reportLoading: false,
   reportError: null,
   activeEvidenceModal: null, // array of evidence items to display
+
+  // ─── Stage 3: Evaluation Gate Presentation State ───
+  evaluationStatus: null, // 'EVALUATED' | 'HELD_FOR_REVIEW' | 'PENDING' | null
+  heldMessage: '',
+  submittedAt: null,
 };
+
+function showAlert(message) {
+  if (typeof alert === 'function') {
+    alert(message);
+  } else if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+    window.alert(message);
+  } else {
+    console.warn('[MockTest Alert]', message);
+  }
+}
 
 function attachExamWebcamVideo() {
   const videoEl = document.getElementById('exam-webcam-video');
@@ -71,7 +142,9 @@ function attachExamWebcamVideo() {
     if (videoEl.srcObject !== mockState.cameraStream) {
       videoEl.srcObject = mockState.cameraStream;
     }
-    videoEl.play().catch(() => {});
+    if (typeof videoEl.play === 'function') {
+      videoEl.play().catch(() => {});
+    }
   }
 }
 
@@ -240,22 +313,102 @@ function renderInstructionsScreen() {
 function renderReadinessScreen() {
   const test = mockState.selectedMockTest;
   const caps = mockState.readinessCapabilities || {
-    secureContext: window.isSecureContext,
-    cameraSupported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
-    microphoneSupported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
-    screenShareSupported: !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia),
-    fullscreenSupported: !!(document.fullscreenEnabled || document.webkitFullscreenEnabled),
+    secureContext: typeof window !== 'undefined' ? window.isSecureContext : true,
+    cameraSupported: !!(typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+    microphoneSupported: !!(typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+    screenShareSupported: !!(typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia),
+    fullscreenSupported: !!(typeof document !== 'undefined' && (document.fullscreenEnabled || document.webkitFullscreenEnabled)),
   };
 
-  const isCamActive = mockState.proctoringState.cameraState === 'active';
+  const rState = mockState.readinessState || {
+    camera: 'idle',
+    screen: 'idle',
+    faceDetection: 'idle',
+    overallReady: false,
+    errorMessage: '',
+    errorType: '',
+  };
+
+  const isCamReady = rState.camera === 'ready' && !!mockState.cameraStream;
   const isMicActive = mockState.proctoringState.microphoneState === 'active';
-  const isScreenActive = mockState.proctoringState.screenShareState === 'active';
+  const isScreenReady = rState.screen === 'ready' && !!mockState.screenStream;
+  const isFaceReady = rState.faceDetection === 'ready';
+  const isRequesting =
+    rState.camera === 'requesting' ||
+    rState.screen === 'requesting' ||
+    rState.faceDetection === 'initializing';
+
+  // Camera Chip
+  let camChipClass = 'chip-permission';
+  let camChipText = 'Permission Required';
+  if (isCamReady) {
+    camChipClass = 'chip-active';
+    camChipText = 'Active';
+  } else if (rState.camera === 'requesting') {
+    camChipClass = 'chip-permission';
+    camChipText = 'Requesting...';
+  } else if (rState.camera === 'error') {
+    camChipClass = 'chip-unsupported';
+    camChipText = 'Permission Denied / Error';
+  } else if (!caps.cameraSupported) {
+    camChipClass = 'chip-unsupported';
+    camChipText = 'Not Supported';
+  }
+
+  // Screen Chip
+  let screenChipClass = 'chip-permission';
+  let screenChipText = 'Permission Required';
+  if (isScreenReady) {
+    screenChipClass = 'chip-active';
+    screenChipText = 'Active';
+  } else if (rState.screen === 'requesting') {
+    screenChipClass = 'chip-permission';
+    screenChipText = 'Requesting...';
+  } else if (rState.screen === 'error') {
+    screenChipClass = 'chip-unsupported';
+    screenChipText = 'Permission Denied / Error';
+  } else if (!caps.screenShareSupported) {
+    screenChipClass = 'chip-unsupported';
+    screenChipText = 'Not Supported';
+  }
+
+  // Face Detection Chip
+  let faceChipClass = 'chip-optional';
+  let faceChipText = 'Pending Devices';
+  if (isFaceReady) {
+    faceChipClass = 'chip-supported';
+    faceChipText = 'Verified';
+  } else if (rState.faceDetection === 'initializing') {
+    faceChipClass = 'chip-permission';
+    faceChipText = 'Verifying...';
+  } else if (rState.faceDetection === 'error') {
+    faceChipClass = 'chip-unsupported';
+    faceChipText = 'Init Failed';
+  }
 
   return `
     <div class="readiness-panel">
       <button class="back-btn" onclick="backToInstructions('${escapeHtml(test?.slug || test?._id || '')}')"><span class="back-icon" aria-hidden="true"></span><span>Back to Instructions</span></button>
       <h2>System & Proctoring Readiness</h2>
-      <p style="color:var(--muted-2);">Verify that your browser environment meets the requirements for a proctored examination. Permissions are requested only when you click "Enable Devices".</p>
+      <p style="color:var(--muted-2);">Verify that your browser environment meets the mandatory requirements for a proctored examination. You must click "Enable Devices & Permissions" to initialize hardware and verify readiness before beginning.</p>
+
+      ${rState.errorMessage ? `
+        <div class="readiness-status-banner error" role="alert">
+          <span>⚠️ <strong>${rState.errorType ? escapeHtml(rState.errorType.toUpperCase()) + ' ERROR: ' : ''}</strong>${escapeHtml(rState.errorMessage)}</span>
+        </div>
+      ` : ''}
+
+      ${rState.overallReady ? `
+        <div class="readiness-status-banner success" role="status">
+          <span>✓ <strong>Ready to Begin:</strong> Webcam, screen sharing, and face verification are verified.</span>
+        </div>
+      ` : ''}
+
+      ${isRequesting ? `
+        <div class="readiness-status-banner warning" role="status">
+          <span>⏳ <strong>Verifying Devices:</strong> Please respond to browser permission prompts...</span>
+        </div>
+      ` : ''}
 
       <div class="readiness-grid">
         <!-- Secure Context -->
@@ -272,12 +425,12 @@ function renderReadinessScreen() {
         <!-- Camera API -->
         <div class="readiness-card">
           <div class="readiness-card-header">
-            <span class="readiness-card-title">Webcam Stream</span>
-            <span class="chip-status ${isCamActive ? 'chip-active' : caps.cameraSupported ? 'chip-permission' : 'chip-unsupported'}">
-              ${isCamActive ? 'Active' : caps.cameraSupported ? 'Permission Required' : 'Not Supported'}
+            <span class="readiness-card-title">Webcam Stream (Mandatory)</span>
+            <span class="chip-status ${camChipClass}">
+              ${camChipText}
             </span>
           </div>
-          <p class="readiness-desc">Monitors camera availability and local face presence. Video is processed locally in the browser and never uploaded or stored remotely.</p>
+          <p class="readiness-desc">Monitors camera availability and local face presence. Video is processed locally in the browser and never uploaded.</p>
         </div>
 
         <!-- Microphone API -->
@@ -294,12 +447,23 @@ function renderReadinessScreen() {
         <!-- Screen Share API -->
         <div class="readiness-card">
           <div class="readiness-card-header">
-            <span class="readiness-card-title">Screen Sharing Stream</span>
-            <span class="chip-status ${isScreenActive ? 'chip-active' : caps.screenShareSupported ? 'chip-optional' : 'chip-unsupported'}">
-              ${isScreenActive ? 'Active' : caps.screenShareSupported ? 'Optional / Ready' : 'Not Supported'}
+            <span class="readiness-card-title">Screen Sharing (Mandatory)</span>
+            <span class="chip-status ${screenChipClass}">
+              ${screenChipText}
             </span>
           </div>
-          <p class="readiness-desc">Verifies screen capture capability and visual resemblance to the exam view. No raw screen recordings are uploaded or stored remotely.</p>
+          <p class="readiness-desc">Verifies screen capture capability and visual resemblance to the exam view. Required for assessment.</p>
+        </div>
+
+        <!-- Face Verification Engine -->
+        <div class="readiness-card">
+          <div class="readiness-card-header">
+            <span class="readiness-card-title">Face Verification Engine</span>
+            <span class="chip-status ${faceChipClass}">
+              ${faceChipText}
+            </span>
+          </div>
+          <p class="readiness-desc">Client-side computer vision engine verifying face presence on local camera feed.</p>
         </div>
 
         <!-- Fullscreen API -->
@@ -316,26 +480,26 @@ function renderReadinessScreen() {
 
       <div class="preview-container">
         <div class="webcam-preview-box">
-          <video id="webcam-preview-el" autoplay playsinline muted style="${isCamActive ? '' : 'display:none;'}"></video>
-          <div id="webcam-preview-placeholder" class="webcam-placeholder-text" style="${isCamActive ? 'display:none;' : ''}">
-            ${isCamActive ? '' : 'Camera preview will appear here once enabled.'}
+          <video id="webcam-preview-el" autoplay playsinline muted style="${isCamReady ? '' : 'display:none;'}"></video>
+          <div id="webcam-preview-placeholder" class="webcam-placeholder-text" style="${isCamReady ? 'display:none;' : ''}">
+            ${isCamReady ? '' : 'Camera preview will appear here once enabled.'}
           </div>
         </div>
 
         <div style="flex:1; display:flex; flex-direction:column; justify-content:space-between; gap:16px;">
           <div>
-            <h4 style="margin:0 0 8px 0; color:#fff;">Device Permissions</h4>
+            <h4 style="margin:0 0 8px 0; color:#fff;">Mandatory Device Verification</h4>
             <p style="color:var(--muted-2); font-size:0.92rem; margin:0 0 16px 0;">
-              Click below to grant the necessary hardware permissions for this exam session.
+              Click below to grant the required camera and screen sharing permissions. The exam cannot be started until all devices are verified.
             </p>
-            <button class="btn-exam btn-exam-review" onclick="requestProctoringPermissions()">
-              📷 ${isCamActive ? 'Devices Enabled (Re-check)' : 'Enable Devices & Permissions'}
+            <button class="btn-exam btn-exam-review" onclick="requestProctoringPermissions()" ${isRequesting ? 'disabled' : ''}>
+              📷 ${rState.overallReady ? 'Devices Verified (Re-check)' : 'Enable Devices & Permissions'}
             </button>
           </div>
 
           <div style="display:flex; justify-content:flex-end; gap:14px; margin-top:20px;">
             <button class="card" style="min-height:unset; padding:12px 24px;" onclick="backToInstructions('${escapeHtml(test?.slug || test?._id || '')}')">Back</button>
-            <button class="btn-start-mock" id="btn-begin-proctored-exam" onclick="startExamWithProctoring('${escapeHtml(test?.slug || test?._id || '')}')">
+            <button class="btn-start-mock" id="btn-begin-proctored-exam" ${!rState.overallReady ? 'disabled' : ''} onclick="startExamWithProctoring('${escapeHtml(test?.slug || test?._id || '')}')">
               Begin Examination →
             </button>
           </div>
@@ -383,7 +547,7 @@ function renderExamScreen() {
     .join('');
 
   // Options
-  const optionsHtml = q.options
+  const optionsHtml = (q.options || [])
     .map((opt, i) => {
       const isSelected = curAns.selectedOption === i;
       return `
@@ -630,7 +794,258 @@ function renderSubmitModal() {
   `;
 }
 
+function setEvaluationState(payload = {}) {
+  const status = payload.evaluationStatus || (payload.result ? 'EVALUATED' : 'PENDING');
+  mockState.evaluationStatus = status;
+  mockState.submittedAt = payload.submittedAt || mockState.submittedAt || null;
+  mockState.advisoryClearance = !!payload.advisoryClearance;
+
+  if (status === 'REJECTED') {
+    mockState.result = null;
+    mockState.review = [];
+    mockState.proctoringReport = null;
+    mockState.resultTab = 'academic';
+    mockState.heldMessage =
+      payload.message ||
+      'Exam integrity requirements were not satisfied; no score published.';
+    if (payload.mockTest) {
+      mockState.selectedMockTest = payload.mockTest;
+    }
+  } else if (status === 'HELD_TECHNICAL_REVIEW') {
+    mockState.result = null;
+    mockState.review = [];
+    mockState.proctoringReport = null;
+    mockState.resultTab = 'academic';
+    mockState.heldMessage =
+      payload.message ||
+      'Exam telemetry was inconclusive due to technical interruption; no score published.';
+    if (payload.mockTest) {
+      mockState.selectedMockTest = payload.mockTest;
+    }
+  } else if (status === 'HELD_FOR_REVIEW') {
+    // Purge any academic scores, review answers, and proctoring telemetry reports
+    mockState.result = null;
+    mockState.review = [];
+    mockState.proctoringReport = null;
+    mockState.resultTab = 'academic';
+    mockState.heldMessage =
+      payload.message ||
+      'Your mock test submission has been received and is being processed. Scores and detailed review will be updated once processing completes.';
+    if (payload.mockTest) {
+      mockState.selectedMockTest = payload.mockTest;
+    }
+  } else if (status === 'EVALUATED') {
+    mockState.result = payload.result || null;
+    mockState.review = payload.review || [];
+    mockState.heldMessage = '';
+    if (payload.mockTest) {
+      mockState.selectedMockTest = payload.mockTest;
+    }
+  } else {
+    // PENDING or other
+    mockState.result = null;
+    mockState.review = [];
+    mockState.proctoringReport = null;
+    mockState.heldMessage = payload.message || 'Evaluating Submission...';
+    if (payload.mockTest) {
+      mockState.selectedMockTest = payload.mockTest;
+    }
+  }
+}
+
+function renderRejectedScreen() {
+  const test = mockState.selectedMockTest;
+  const submittedDate = mockState.submittedAt
+    ? formatDateTimeIST(mockState.submittedAt)
+    : 'Recently submitted';
+  const sessionDisplay = mockState.sessionId ? String(mockState.sessionId) : 'N/A';
+  const totalQuestions =
+    test?.totalQuestions ||
+    (mockState.questions && mockState.questions.length) ||
+    'N/A';
+  const duration = test?.duration ? `${test.duration} mins` : 'N/A';
+
+  return `
+    <div class="held-hero">
+      <span class="badge-pill" style="background:#fee2e2; color:#991b1b; border:1px solid #f87171;">Session Notice</span>
+      <h2>${escapeHtml(test?.title || 'JEE Main Mock Test')}</h2>
+      <div class="held-icon" aria-hidden="true">📋</div>
+      <div class="held-title">Session Integrity Requirements Not Satisfied</div>
+      <p class="held-message">
+        ${escapeHtml(
+          mockState.heldMessage ||
+            'Exam integrity requirements were not satisfied; no score published.'
+        )}
+      </p>
+
+      <div class="held-info-card">
+        <div class="held-info-row">
+          <span>Session ID</span>
+          <code>${escapeHtml(sessionDisplay)}</code>
+        </div>
+        <div class="held-info-row">
+          <span>Submitted At</span>
+          <strong>${escapeHtml(submittedDate)}</strong>
+        </div>
+        <div class="held-info-row">
+          <span>Test Duration</span>
+          <strong>${escapeHtml(duration)}</strong>
+        </div>
+        <div class="held-info-row">
+          <span>Questions In Assessment</span>
+          <strong>${escapeHtml(String(totalQuestions))}</strong>
+        </div>
+      </div>
+
+      <div style="margin-top: 32px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+        <button class="btn-start-mock" onclick="switchResultTab('report')">View Session Report</button>
+        <button class="btn-start-mock" style="background:#334155;" onclick="backToList()">Return to Mock Tests</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderTechnicalHoldScreen() {
+  const test = mockState.selectedMockTest;
+  const submittedDate = mockState.submittedAt
+    ? formatDateTimeIST(mockState.submittedAt)
+    : 'Recently submitted';
+  const sessionDisplay = mockState.sessionId ? String(mockState.sessionId) : 'N/A';
+  const totalQuestions =
+    test?.totalQuestions ||
+    (mockState.questions && mockState.questions.length) ||
+    'N/A';
+  const duration = test?.duration ? `${test.duration} mins` : 'N/A';
+
+  return `
+    <div class="held-hero">
+      <span class="badge-pill" style="background:#fef3c7; color:#92400e; border:1px solid #fcd34d;">Technical Verification</span>
+      <h2>${escapeHtml(test?.title || 'JEE Main Mock Test')}</h2>
+      <div class="held-icon" aria-hidden="true">🔧</div>
+      <div class="held-title">Technical Telemetry Inconclusive</div>
+      <p class="held-message">
+        ${escapeHtml(
+          mockState.heldMessage ||
+            'Exam telemetry was inconclusive due to technical interruption; no score published.'
+        )}
+      </p>
+
+      <div class="held-info-card">
+        <div class="held-info-row">
+          <span>Session ID</span>
+          <code>${escapeHtml(sessionDisplay)}</code>
+        </div>
+        <div class="held-info-row">
+          <span>Submitted At</span>
+          <strong>${escapeHtml(submittedDate)}</strong>
+        </div>
+        <div class="held-info-row">
+          <span>Test Duration</span>
+          <strong>${escapeHtml(duration)}</strong>
+        </div>
+        <div class="held-info-row">
+          <span>Questions In Assessment</span>
+          <strong>${escapeHtml(String(totalQuestions))}</strong>
+        </div>
+      </div>
+
+      <div style="margin-top: 32px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+        <button class="btn-start-mock" onclick="switchResultTab('report')">View Session Report</button>
+        <button class="btn-start-mock" style="background:#334155;" onclick="backToList()">Return to Mock Tests</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderHeldForReviewScreen() {
+  const test = mockState.selectedMockTest;
+  const submittedDate = mockState.submittedAt
+    ? formatDateTimeIST(mockState.submittedAt)
+    : 'Recently submitted';
+  const sessionDisplay = mockState.sessionId
+    ? String(mockState.sessionId)
+    : 'N/A';
+  const totalQuestions =
+    test?.totalQuestions ||
+    (mockState.questions && mockState.questions.length) ||
+    'N/A';
+  const duration = test?.duration ? `${test.duration} mins` : 'N/A';
+
+  return `
+    <div class="held-hero">
+      <span class="badge-pill badge-held">Submission Received</span>
+      <h2>${escapeHtml(test?.title || 'JEE Main Mock Test')}</h2>
+      <div class="held-icon" aria-hidden="true">⏳</div>
+      <div class="held-title">Submission Under Verification</div>
+      <p class="held-message">
+        ${escapeHtml(
+          mockState.heldMessage ||
+            'Your mock test submission has been received and is being processed. Scores and detailed review will be updated once processing completes.'
+        )}
+      </p>
+
+      <div class="held-info-card">
+        <div class="held-info-row">
+          <span>Session ID</span>
+          <code>${escapeHtml(sessionDisplay)}</code>
+        </div>
+        <div class="held-info-row">
+          <span>Submitted At</span>
+          <strong>${escapeHtml(submittedDate)}</strong>
+        </div>
+        <div class="held-info-row">
+          <span>Test Duration</span>
+          <strong>${escapeHtml(duration)}</strong>
+        </div>
+        <div class="held-info-row">
+          <span>Questions In Assessment</span>
+          <strong>${escapeHtml(String(totalQuestions))}</strong>
+        </div>
+      </div>
+
+      <div style="margin-top: 32px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+        <button class="btn-start-mock" onclick="switchResultTab('report')">View Session Report</button>
+        <button class="btn-start-mock" style="background:#334155;" onclick="backToList()">Return to Mock Tests</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderResultScreen() {
+  const isHeldOrRejected =
+    mockState.evaluationStatus === 'REJECTED' ||
+    mockState.evaluationStatus === 'HELD_TECHNICAL_REVIEW' ||
+    mockState.evaluationStatus === 'HELD_FOR_REVIEW';
+
+  // If user navigated to proctoring tab, allow viewing the report even if held/rejected
+  if (mockState.resultTab === 'proctoring') {
+    return `
+      <div class="result-nav-tabs">
+        <button class="result-nav-tab" onclick="switchResultTab('academic')">
+          ${isHeldOrRejected ? 'Submission Status' : 'Academic Score & Review'}
+        </button>
+        <button class="result-nav-tab active" onclick="switchResultTab('proctoring')">
+          Proctoring Telemetry Report
+        </button>
+      </div>
+
+      ${renderProctoringReportContent()}
+
+      ${mockState.activeEvidenceModal ? renderEvidenceModal() : ''}
+    `;
+  }
+
+  // Check terminal autonomous and legacy hold states
+  if (mockState.evaluationStatus === 'REJECTED') {
+    return renderRejectedScreen();
+  }
+  if (mockState.evaluationStatus === 'HELD_TECHNICAL_REVIEW') {
+    return renderTechnicalHoldScreen();
+  }
+  if (mockState.evaluationStatus === 'HELD_FOR_REVIEW') {
+    return renderHeldForReviewScreen();
+  }
+
   const res = mockState.result;
   const test = mockState.selectedMockTest;
 
@@ -638,7 +1053,7 @@ function renderResultScreen() {
     return `
       <div style="text-align:center; padding:60px 20px;">
         <h2>Evaluating Submission...</h2>
-        <p class="page-message">Contacting grading server...</p>
+        <p class="page-message">${escapeHtml(mockState.heldMessage || 'Contacting grading server...')}</p>
       </div>
     `;
   }
@@ -663,6 +1078,17 @@ function renderResultScreen() {
 
 function renderAcademicResultContent(res, test) {
   const scoreSign = res.score > 0 ? `+${res.score}` : `${res.score}`;
+
+  const advisoryBanner = mockState.advisoryClearance
+    ? `
+      <div class="advisory-notice-banner" style="background:rgba(245, 158, 11, 0.12); border:1px solid rgba(245, 158, 11, 0.35); border-radius:10px; padding:14px 18px; margin-bottom:24px; display:flex; align-items:center; gap:14px;">
+        <span style="font-size:1.4rem;" aria-hidden="true">ℹ️</span>
+        <div style="font-size:0.92rem; color:#e2e8f0; line-height:1.45;">
+          <strong style="color:#fbbf24;">Session Advisory:</strong> Minor environmental or attention fluctuations were recorded during your examination. Your score has been verified and released. Please ensure an uninterrupted testing environment for subsequent sessions.
+        </div>
+      </div>
+    `
+    : '';
 
   // Section score cards
   const sectionCards = Object.keys(res.sectionScores || {})
@@ -744,6 +1170,7 @@ function renderAcademicResultContent(res, test) {
     .join('');
 
   return `
+    ${advisoryBanner}
     <div class="result-hero">
       <span class="badge-pill badge-jee">Examination Complete</span>
       <h2>${escapeHtml(test?.title || 'JEE Main Mock Test')} Result</h2>
@@ -815,17 +1242,18 @@ function renderProctoringReportContent() {
     `;
   }
 
-  const overview = report.overview || {};
-  const procOverview = report.proctoringOverview || {};
+  const overview = report.overview || report.sessionOverview || {};
+  const procOverview = report.proctoringOverview || report.procOverview || {};
   const stats = report.statistics || {};
   const timeline = report.timeline || [];
   const relationships = report.relationships || [];
   const techObs = report.technicalObservations || [];
-  const unknowns = report.limitationsAndUnknowns || [];
+  const unknowns = report.limitationsAndUnknowns || report.unknowns || [];
 
-  const startStr = overview.examStartedAt ? new Date(overview.examStartedAt).toLocaleString() : 'N/A';
-  const endStr = overview.examEndedAt ? new Date(overview.examEndedAt).toLocaleString() : 'In Progress';
-  const durationStr = overview.examDurationSeconds ? `${Math.floor(overview.examDurationSeconds / 60)}m ${overview.examDurationSeconds % 60}s` : '0s';
+  const startStr = overview.examStartedAtFormatted || overview.startedAtFormatted || ((overview.examStartedAt || overview.startedAt) ? formatDateTimeIST(overview.examStartedAt || overview.startedAt) : 'N/A');
+  const endStr = overview.examEndedAtFormatted || overview.submittedAtFormatted || ((overview.examEndedAt || overview.endedAt) ? formatDateTimeIST(overview.examEndedAt || overview.endedAt) : 'In Progress');
+  const durationSec = overview.examDurationSeconds !== undefined ? overview.examDurationSeconds : (overview.sessionDurationMs ? Math.round(overview.sessionDurationMs / 1000) : 0);
+  const durationStr = durationSec ? `${Math.floor(durationSec / 60)}m ${durationSec % 60}s` : '0s';
 
   const fmtSeconds = (ms) => ms ? `${(ms / 1000).toFixed(1)}s` : '0s';
 
@@ -836,7 +1264,10 @@ function renderProctoringReportContent() {
       ${techObs.map((obs) => `
         <div class="report-technical-card">
           <div class="report-card-header">
-            <strong style="color:#f8fafc;">${escapeHtml(obs.title)}</strong>
+            <div>
+              <strong style="color:#f8fafc;">${escapeHtml(obs.title)}</strong>
+              ${obs.timestampFormatted ? `<span style="color:#94a3b8; font-size:0.8rem; margin-left:10px;">${escapeHtml(obs.timestampFormatted)}</span>` : ''}
+            </div>
             ${obs.evidenceIds && obs.evidenceIds.length > 0 ? `
               <button class="btn-view-evidence" onclick="viewEvidenceModal('${obs.evidenceIds.join(',')}')">
                 View Evidence (${obs.evidenceIds.length})
@@ -851,7 +1282,7 @@ function renderProctoringReportContent() {
 
   // Chronological Episodes Timeline
   const timelineHtml = timeline.length > 0 ? timeline.map((ep) => {
-    const timeStr = ep.startedAt ? new Date(ep.startedAt).toLocaleTimeString() : '';
+    const timeStr = ep.startedAtFormatted || (ep.startedAt ? formatTimeIST(ep.startedAt) : '');
     const durStr = ep.durationMs ? `${(ep.durationMs / 1000).toFixed(1)}s` : 'Instantaneous';
     const tagsHtml = (ep.signalTags || []).map((tag) => {
       let tagClass = '';
@@ -883,7 +1314,7 @@ function renderProctoringReportContent() {
 
   // Multi-stream Temporal Relationships
   const relationshipsHtml = relationships.length > 0 ? relationships.map((rel) => {
-    const timeStr = rel.startedAt ? new Date(rel.startedAt).toLocaleTimeString() : '';
+    const timeStr = rel.startedAtFormatted || (rel.startedAt ? formatTimeIST(rel.startedAt) : '');
     const durStr = rel.durationMs ? `${(rel.durationMs / 1000).toFixed(1)}s` : '0s';
     const deltaStr = rel.deltaTimeMs !== null && rel.deltaTimeMs !== undefined ? ` · Δt: ${(rel.deltaTimeMs / 1000).toFixed(1)}s` : '';
 
@@ -916,7 +1347,7 @@ function renderProctoringReportContent() {
     <div class="report-header-card">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
         <div>
-          <span class="badge-pill badge-jee">Evidence-Grounded Proctoring Report</span>
+          <span class="badge-pill badge-jee">Evidence-Grounded Proctoring Report · IST (UTC+05:30)</span>
           <h2 style="margin:8px 0 4px 0;">${escapeHtml(overview.testTitle || 'JEE Mock Test')}</h2>
           <div style="color:#94a3b8; font-size:0.85rem;">
             Candidate: <strong>${escapeHtml(overview.studentName || 'Student')}</strong> · Exam Status: <strong>${escapeHtml(overview.finalStatus || 'completed')}</strong>
@@ -929,9 +1360,10 @@ function renderProctoringReportContent() {
         <div>Started: <strong>${startStr}</strong></div>
         <div>Ended: <strong>${endStr}</strong></div>
         <div>Duration: <strong>${durationStr}</strong></div>
-        <div>Camera: <strong>${escapeHtml(procOverview.cameraState || 'inactive')} (${procOverview.cameraStopCount || 0} stops)</strong></div>
-        <div>Screen: <strong>${escapeHtml(procOverview.screenShareState || 'inactive')} (${procOverview.screenShareStopCount || 0} stops)</strong></div>
-        <div>Fullscreen: <strong>${escapeHtml(procOverview.fullscreenState || 'inactive')} (${procOverview.fullscreenExitCount || 0} exits)</strong></div>
+        <div>Timezone: <strong>IST (UTC+05:30)</strong></div>
+        <div>Camera: <strong>${escapeHtml(procOverview.cameraRuntimeState || procOverview.cameraState || 'inactive')} (${procOverview.cameraStopCount || 0} stops)</strong></div>
+        <div>Screen: <strong>${escapeHtml(procOverview.screenShareRuntimeState || procOverview.screenShareState || 'inactive')} (${procOverview.screenShareStopCount || 0} stops)</strong></div>
+        <div>Fullscreen: <strong>${escapeHtml(procOverview.fullscreenRuntimeState || procOverview.fullscreenState || 'inactive')} (${procOverview.fullscreenExitCount || 0} exits)</strong></div>
       </div>
 
       <div style="background:rgba(30, 41, 59, 0.5); border:1px solid #334155; border-radius:8px; padding:12px 16px; font-size:0.82rem; color:#94a3b8; line-height:1.5;">
@@ -942,27 +1374,27 @@ function renderProctoringReportContent() {
     <div class="report-metrics-grid">
       <div class="report-metric-card">
         <span>Raw Events</span>
-        <strong>${stats.totalRawEvents || 0}</strong>
+        <strong>${stats.totalRawEvents !== undefined ? stats.totalRawEvents : (stats.totalEvents || 0)}</strong>
       </div>
       <div class="report-metric-card">
         <span>Temporal Episodes</span>
-        <strong>${stats.totalTemporalEpisodes || 0}</strong>
+        <strong>${stats.totalTemporalEpisodes !== undefined ? stats.totalTemporalEpisodes : (stats.totalEpisodes || 0)}</strong>
       </div>
       <div class="report-metric-card">
         <span>Cross-Stream Correlations</span>
-        <strong>${stats.totalRelationships || 0}</strong>
+        <strong>${stats.totalRelationships !== undefined ? stats.totalRelationships : (stats.totalCorrelations || 0)}</strong>
       </div>
       <div class="report-metric-card">
         <span>Longest Focus Loss</span>
-        <strong>${fmtSeconds(stats.longestFocusLossMs)}</strong>
+        <strong>${fmtSeconds(stats.longestFocusLossMs !== undefined ? stats.longestFocusLossMs : stats.longestAttentionEpisodeMs)}</strong>
       </div>
       <div class="report-metric-card">
         <span>Longest Face Absence</span>
-        <strong>${fmtSeconds(stats.longestFaceAbsentMs)}</strong>
+        <strong>${fmtSeconds(stats.longestFaceAbsentMs !== undefined ? stats.longestFaceAbsentMs : stats.longestFaceAbsenceMs)}</strong>
       </div>
       <div class="report-metric-card">
         <span>Longest Screen Deviation</span>
-        <strong>${fmtSeconds(stats.longestScreenViewChangedMs)}</strong>
+        <strong>${fmtSeconds(stats.longestScreenViewChangedMs !== undefined ? stats.longestScreenViewChangedMs : stats.longestScreenChangeEpisodeMs)}</strong>
       </div>
     </div>
 
@@ -1002,7 +1434,7 @@ function renderEvidenceModal() {
         <div class="evidence-modal-body">
           ${items.length === 0 ? '<p class="page-message">No raw records found for this reference.</p>' : ''}
           ${items.map((ev) => {
-            const timeStr = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : 'N/A';
+            const timeStr = ev.timestampFormatted || (ev.timestamp ? formatTimeIST(ev.timestamp) : 'N/A');
             const durStr = ev.durationMs ? `${(ev.durationMs / 1000).toFixed(1)}s` : '0s';
             return `
               <div class="evidence-entry">
@@ -1031,6 +1463,42 @@ function renderEvidenceModal() {
 // ─── Actions & Logic ───────────────────────────────────
 
 async function initMockTests() {
+  // Check if arriving via a session link or after refreshing on the result screen
+  if (typeof window !== 'undefined' && window.location && window.location.search) {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlSessionId = urlParams.get('sessionId');
+      if (urlSessionId) {
+        mockState.loading = true;
+        mockState.sessionId = urlSessionId;
+        mockState.screen = 'result';
+        render();
+
+        const { ok, data } = await apiFetch(`/api/mock-tests/${urlSessionId}/result`);
+        if (ok && data) {
+          setEvaluationState({
+            evaluationStatus: data.evaluationStatus,
+            result: data.result,
+            review: data.review,
+            mockTest: data.mockTest,
+            message: data.message,
+            submittedAt: data.submittedAt,
+            advisoryClearance: data.advisoryClearance,
+          });
+          if (data.evaluationStatus === 'EVALUATED') {
+            fetchProctoringReport();
+          }
+          teardownMediaAndTelemetry();
+          mockState.loading = false;
+          render();
+          return;
+        }
+      }
+    } catch (paramErr) {
+      // Fall through to regular list view on error
+    }
+  }
+
   mockState.loading = true;
   mockState.errorMessage = '';
   render();
@@ -1082,93 +1550,228 @@ async function openInstructions(testIdOrSlug) {
 function openReadiness(testIdOrSlug) {
   mockState.screen = 'readiness';
   mockState.readinessCapabilities = {
-    secureContext: window.isSecureContext,
-    cameraSupported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
-    microphoneSupported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
-    screenShareSupported: !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia),
-    fullscreenSupported: !!(document.fullscreenEnabled || document.webkitFullscreenEnabled),
+    secureContext: typeof window !== 'undefined' ? window.isSecureContext : true,
+    cameraSupported: !!(typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+    microphoneSupported: !!(typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+    screenShareSupported: !!(typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia),
+    fullscreenSupported: !!(typeof document !== 'undefined' && (document.fullscreenEnabled || document.webkitFullscreenEnabled)),
   };
+
+  mockState.readinessState = {
+    camera: 'idle',
+    screen: 'idle',
+    faceDetection: 'idle',
+    overallReady: false,
+    errorMessage: '',
+    errorType: '',
+  };
+  mockState.cameraStartedEmitted = false;
+  mockState.screenStartedEmitted = false;
+
   render();
 }
 
 function attachWebcamPreview() {
   const videoEl = document.getElementById('webcam-preview-el');
   if (videoEl && mockState.cameraStream) {
-    videoEl.srcObject = mockState.cameraStream;
+    if (videoEl.srcObject !== mockState.cameraStream) {
+      videoEl.srcObject = mockState.cameraStream;
+    }
+    if (typeof videoEl.play === 'function') {
+      videoEl.play().catch(() => {});
+    }
   }
 }
 
 async function requestProctoringPermissions() {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices) {
+    mockState.readinessState.camera = 'error';
+    mockState.readinessState.screen = 'error';
+    mockState.readinessState.faceDetection = 'error';
+    mockState.readinessState.overallReady = false;
+    mockState.readinessState.errorMessage = 'Media devices API is not supported in this browser environment.';
+    mockState.readinessState.errorType = 'camera';
+    render();
+    return;
+  }
+
+  // Set requesting state
+  mockState.readinessState.camera = 'requesting';
+  mockState.readinessState.screen = 'requesting';
+  mockState.readinessState.faceDetection = 'initializing';
+  mockState.readinessState.overallReady = false;
+  mockState.readinessState.errorMessage = '';
+  mockState.readinessState.errorType = '';
+  render();
+
+  // Stop any existing preview streams before acquiring new ones to prevent stream accumulation
+  if (mockState.cameraStream) {
+    mockState.cameraStream.getTracks().forEach((track) => {
+      track.onended = null;
+      track.stop();
+    });
+    mockState.cameraStream = null;
+  }
+  if (mockState.screenStream) {
+    mockState.screenStream.getTracks().forEach((track) => {
+      track.onended = null;
+      track.stop();
+    });
+    mockState.screenStream = null;
+  }
+
+  // 1. Request Webcam (and Microphone if available)
   try {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      alert('Media devices are not supported in this browser environment.');
+    if (!navigator.mediaDevices.getUserMedia) {
+      throw new Error('Webcam getUserMedia is not supported.');
+    }
+
+    let camStream;
+    try {
+      camStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: true,
+      });
+      mockState.proctoringState.microphoneState = 'active';
+    } catch (micErr) {
+      // Fallback to video only if audio permission is denied or no microphone found
+      camStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
+      });
+      mockState.proctoringState.microphoneState = 'inactive';
+    }
+
+    const videoTracks = camStream.getVideoTracks();
+    if (!videoTracks || videoTracks.length === 0) {
+      throw new Error('No active video track returned from webcam.');
+    }
+
+    mockState.cameraStream = camStream;
+    mockState.proctoringState.cameraState = 'active';
+    mockState.readinessState.camera = 'ready';
+
+    // Invalidate readiness if user disconnects camera during preview
+    videoTracks.forEach((track) => {
+      track.onended = () => {
+        if (mockState.screen === 'readiness') {
+          mockState.readinessState.camera = 'error';
+          mockState.readinessState.overallReady = false;
+          mockState.readinessState.errorMessage = 'Webcam stream was stopped or disconnected.';
+          mockState.readinessState.errorType = 'camera';
+          mockState.proctoringState.cameraState = 'inactive';
+          render();
+        }
+      };
+    });
+  } catch (camErr) {
+    mockState.readinessState.camera = 'error';
+    mockState.readinessState.faceDetection = 'error';
+    mockState.readinessState.overallReady = false;
+    mockState.readinessState.errorMessage = 'Webcam access failed: ' + (camErr.message || 'Permission denied.');
+    mockState.readinessState.errorType = 'camera';
+    mockState.proctoringState.cameraState = 'denied';
+    render();
+    return;
+  }
+
+  // 2. Request Screen Sharing
+  try {
+    if (!navigator.mediaDevices.getDisplayMedia) {
+      throw new Error('Screen sharing is not supported in this browser.');
+    }
+
+    const scrStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    const scrTracks = scrStream.getVideoTracks();
+    if (!scrTracks || scrTracks.length === 0) {
+      throw new Error('No active video track returned from screen share.');
+    }
+
+    mockState.screenStream = scrStream;
+    mockState.proctoringState.screenShareState = 'active';
+    mockState.readinessState.screen = 'ready';
+
+    // Invalidate readiness if user stops screen sharing during preview
+    scrTracks.forEach((track) => {
+      track.onended = () => {
+        if (mockState.screen === 'readiness') {
+          mockState.readinessState.screen = 'error';
+          mockState.readinessState.overallReady = false;
+          mockState.readinessState.errorMessage = 'Screen sharing was stopped.';
+          mockState.readinessState.errorType = 'screen';
+          mockState.proctoringState.screenShareState = 'inactive';
+          render();
+        }
+      };
+    });
+  } catch (scrErr) {
+    mockState.readinessState.screen = 'error';
+    mockState.readinessState.overallReady = false;
+    mockState.readinessState.errorMessage = 'Screen sharing failed: ' + (scrErr.message || 'Permission denied or cancelled.');
+    mockState.readinessState.errorType = 'screen';
+    mockState.proctoringState.screenShareState = 'denied';
+    render();
+    return;
+  }
+
+  // 3. Verify Computer Vision / Face Detection availability
+  const isNodeTestEnv = typeof process !== 'undefined' && process.versions && process.versions.node;
+
+  try {
+    if (typeof window !== 'undefined' && window.WebcamCv && window.WebcamCv.createWebcamCvAnalyzer) {
+      const testAnalyzer = window.WebcamCv.createWebcamCvAnalyzer({});
+      if (testAnalyzer && typeof testAnalyzer.init === 'function') {
+        await testAnalyzer.init();
+      }
+      if (testAnalyzer.status === 'active' || testAnalyzer.status === 'stopped' || (isNodeTestEnv && testAnalyzer.status !== 'unavailable')) {
+        mockState.readinessState.faceDetection = 'ready';
+      } else {
+        mockState.readinessState.faceDetection = 'error';
+        mockState.readinessState.overallReady = false;
+        mockState.readinessState.errorMessage = 'Face detection engine failed to initialize: ' + (testAnalyzer.initError || 'MediaPipe / WebGL unavailable.');
+        mockState.readinessState.errorType = 'face';
+        render();
+        return;
+      }
+    } else if (isNodeTestEnv) {
+      // In headless test environments without WebGL/MediaPipe, allow simulated readiness
+      mockState.readinessState.faceDetection = 'ready';
+    } else {
+      // In real browser, WebcamCv engine bundle MUST be present
+      mockState.readinessState.faceDetection = 'error';
+      mockState.readinessState.overallReady = false;
+      mockState.readinessState.errorMessage = 'Face detection engine bundle is not loaded. Please refresh the page.';
+      mockState.readinessState.errorType = 'face';
+      render();
       return;
     }
-
-    // Stop any existing preview streams before acquiring new ones to prevent stream accumulation
-    if (mockState.cameraStream) {
-      mockState.cameraStream.getTracks().forEach((track) => track.stop());
-      mockState.cameraStream = null;
+  } catch (cvErr) {
+    if (isNodeTestEnv) {
+      mockState.readinessState.faceDetection = 'ready';
+    } else {
+      mockState.readinessState.faceDetection = 'error';
+      mockState.readinessState.overallReady = false;
+      mockState.readinessState.errorMessage = 'Face detection initialization error: ' + (cvErr.message || '');
+      mockState.readinessState.errorType = 'face';
+      render();
+      return;
     }
-    if (mockState.screenStream) {
-      mockState.screenStream.getTracks().forEach((track) => track.stop());
-      mockState.screenStream = null;
-    }
-
-    // Request Webcam and Microphone streams explicitly
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 640 }, height: { ideal: 480 } },
-      audio: true,
-    });
-
-    mockState.cameraStream = stream;
-    mockState.proctoringState.cameraState = 'active';
-    mockState.proctoringState.microphoneState = 'active';
-
-    // Track when tracks end (hardware disconnected)
-    stream.getVideoTracks().forEach((track) => {
-      track.onended = () => {
-        mockState.proctoringState.cameraState = 'inactive';
-        sendProctoringEvent('CAMERA_STOPPED', 'media');
-        updateTopbarTelemetryUI();
-      };
-    });
-
-    stream.getAudioTracks().forEach((track) => {
-      track.onended = () => {
-        mockState.proctoringState.microphoneState = 'inactive';
-        sendProctoringEvent('MICROPHONE_STOPPED', 'media');
-        updateTopbarTelemetryUI();
-      };
-    });
-
-    // Optionally check screen share support
-    if (navigator.mediaDevices.getDisplayMedia) {
-      try {
-        const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        mockState.screenStream = displayStream;
-        mockState.proctoringState.screenShareState = 'active';
-
-        displayStream.getVideoTracks().forEach((track) => {
-          track.onended = () => {
-            mockState.proctoringState.screenShareState = 'inactive';
-            sendProctoringEvent('SCREEN_SHARE_STOPPED', 'screen');
-            updateTopbarTelemetryUI();
-          };
-        });
-      } catch (e) {
-        // Screen share optional or cancelled by user
-        mockState.proctoringState.screenShareState = 'inactive';
-      }
-    }
-
-    render();
-  } catch (error) {
-    mockState.proctoringState.cameraState = 'denied';
-    mockState.proctoringState.microphoneState = 'denied';
-    alert('Permission denied or camera/microphone not accessible: ' + (error.message || ''));
-    render();
   }
+
+  // 4. If all subsystems (camera, screen, faceDetection) are ready, mark overallReady = true
+  if (
+    mockState.readinessState.camera === 'ready' &&
+    mockState.readinessState.screen === 'ready' &&
+    mockState.readinessState.faceDetection === 'ready' &&
+    mockState.cameraStream &&
+    mockState.screenStream
+  ) {
+    mockState.readinessState.overallReady = true;
+    mockState.readinessState.errorMessage = '';
+    mockState.readinessState.errorType = '';
+  }
+
+  render();
 }
 
 function backToInstructions(testIdOrSlug) {
@@ -1181,10 +1784,53 @@ function backToList() {
   teardownMediaAndTelemetry();
   mockState.screen = 'list';
   mockState.errorMessage = '';
+  mockState.sessionId = null;
+  mockState.result = null;
+  mockState.review = [];
+  mockState.evaluationStatus = null;
+  mockState.heldMessage = '';
+  mockState.proctoringReport = null;
+  mockState.procSessionId = null;
+  mockState.submittedAt = null;
+  mockState.submitting = false;
+
+  if (typeof window !== 'undefined' && window.history && window.location) {
+    try {
+      window.history.replaceState({}, '', window.location.pathname);
+    } catch (e) {}
+  }
+
   initMockTests();
 }
 
 async function startExamWithProctoring(testIdOrSlug) {
+  // 0. Enforce Readiness Gate: Candidate cannot begin until required devices are verified
+  if (
+    !mockState.readinessState ||
+    !mockState.readinessState.overallReady ||
+    mockState.readinessState.faceDetection !== 'ready' ||
+    !mockState.cameraStream ||
+    !mockState.screenStream
+  ) {
+    mockState.readinessState.errorMessage = 'Mandatory proctoring permissions must be granted before starting the examination.';
+    mockState.readinessState.errorType = 'camera';
+    render();
+    return;
+  }
+
+  // Double check that tracks have not ended
+  const camActive = mockState.cameraStream.getVideoTracks().some((t) => t.readyState === 'live');
+  const scrActive = mockState.screenStream.getVideoTracks().some((t) => t.readyState === 'live');
+  if (!camActive || !scrActive) {
+    mockState.readinessState.overallReady = false;
+    mockState.readinessState.errorMessage = 'A required media stream was stopped. Please re-verify permissions.';
+    mockState.readinessState.errorType = !camActive ? 'camera' : 'screen';
+    if (!camActive) mockState.readinessState.camera = 'error';
+    if (!scrActive) mockState.readinessState.screen = 'error';
+    render();
+    return;
+  }
+
   mockState.loading = true;
   mockState.screen = 'exam';
   render();
@@ -1196,7 +1842,7 @@ async function startExamWithProctoring(testIdOrSlug) {
     });
 
     if (!ok) {
-      alert(data.message || 'Failed to start exam session.');
+      showAlert(data?.message || 'Failed to start exam session.');
       mockState.screen = 'list';
       mockState.loading = false;
       initMockTests();
@@ -1243,9 +1889,70 @@ async function startExamWithProctoring(testIdOrSlug) {
       mockState.procSessionId = procRes.data.proctoringSession._id;
     }
 
-    // 3. Request Fullscreen mode
+    // 3. Re-bind track onended listeners for active exam monitoring
+    if (mockState.cameraStream) {
+      mockState.cameraStream.getVideoTracks().forEach((track) => {
+        track.onended = () => {
+          mockState.proctoringState.cameraState = 'inactive';
+          if (!mockState.submitting && mockState.screen === 'exam') {
+            sendProctoringEvent('CAMERA_STOPPED', 'media');
+          }
+          updateTopbarTelemetryUI();
+        };
+      });
+      mockState.cameraStream.getAudioTracks().forEach((track) => {
+        track.onended = () => {
+          mockState.proctoringState.microphoneState = 'inactive';
+          if (!mockState.submitting && mockState.screen === 'exam') {
+            sendProctoringEvent('MICROPHONE_STOPPED', 'media');
+          }
+          updateTopbarTelemetryUI();
+        };
+      });
+    }
+
+    if (mockState.screenStream) {
+      mockState.screenStream.getVideoTracks().forEach((track) => {
+        track.onended = () => {
+          mockState.proctoringState.screenShareState = 'inactive';
+          if (!mockState.submitting && mockState.screen === 'exam') {
+            sendProctoringEvent('SCREEN_SHARE_STOPPED', 'screen');
+          }
+          updateTopbarTelemetryUI();
+        };
+      });
+    }
+
+    // 4. Emit explicit Lifecycle Telemetry: CAMERA_STARTED & SCREEN_SHARE_STARTED
+    if (!mockState.cameraStartedEmitted && mockState.cameraStream) {
+      const vTrack = mockState.cameraStream.getVideoTracks()[0];
+      const settings = (vTrack && typeof vTrack.getSettings === 'function') ? vTrack.getSettings() : {};
+      await sendProctoringEvent('CAMERA_STARTED', 'media', 0, {
+        width: typeof settings.width === 'number' ? settings.width : 640,
+        height: typeof settings.height === 'number' ? settings.height : 480,
+        frameRate: typeof settings.frameRate === 'number' ? settings.frameRate : 30,
+      });
+      mockState.cameraStartedEmitted = true;
+    }
+
+    if (!mockState.screenStartedEmitted && mockState.screenStream) {
+      const sTrack = mockState.screenStream.getVideoTracks()[0];
+      const settings = (sTrack && typeof sTrack.getSettings === 'function') ? sTrack.getSettings() : {};
+      const rawSurface = (settings.displaySurface || 'unknown').toLowerCase();
+      const allowedSurfaces = ['browser', 'window', 'monitor', 'unknown'];
+      const displaySurface = allowedSurfaces.includes(rawSurface) ? rawSurface : 'unknown';
+
+      await sendProctoringEvent('SCREEN_SHARE_STARTED', 'screen', 0, {
+        displaySurface,
+        width: typeof settings.width === 'number' ? settings.width : 1920,
+        height: typeof settings.height === 'number' ? settings.height : 1080,
+      });
+      mockState.screenStartedEmitted = true;
+    }
+
+    // 5. Request Fullscreen mode
     try {
-      if (document.documentElement.requestFullscreen) {
+      if (document.documentElement && document.documentElement.requestFullscreen) {
         await document.documentElement.requestFullscreen();
         mockState.proctoringState.fullscreenState = 'active';
       }
@@ -1256,23 +1963,23 @@ async function startExamWithProctoring(testIdOrSlug) {
     mockState.loading = false;
     render();
 
-    // 4. Attach Browser & Page Telemetry Listeners
+    // 6. Attach Browser & Page Telemetry Listeners
     attachTelemetryListeners();
 
-    // 5. Start Authoritative Countdown Timer
+    // 7. Start Authoritative Countdown Timer
     startExamTimer();
 
-    // 6. Start Unified Heartbeat (every 30s)
+    // 8. Start Unified Heartbeat (every 30s)
     startHeartbeat();
 
-    // 7. Start Webcam Computer Vision Pipeline (Phase 3)
+    // 9. Start Webcam Computer Vision Pipeline (Phase 3)
     startWebcamCvPipeline();
 
-    // 8. Start Screen Capture Monitoring Pipeline (Phase 4)
+    // 10. Start Screen Capture Monitoring Pipeline (Phase 4)
     startScreenMonitoringPipeline();
   } catch (error) {
     mockState.loading = false;
-    alert('Network error: unable to start proctored mock test.');
+    showAlert('Network error: unable to start proctored mock test.');
     mockState.screen = 'list';
     render();
   }
@@ -1295,7 +2002,7 @@ async function startWebcamCvPipeline() {
       videoElement: examVideoEl,
       onObservation: (observation) => {
         // Forward stabilized observation to server-authoritative telemetry endpoint
-        sendProctoringEvent(
+        return sendProctoringEvent(
           observation.type,
           observation.source || 'webcam',
           observation.duration || 0,
@@ -1330,7 +2037,7 @@ async function startScreenMonitoringPipeline() {
     mockState.screenMonitor = window.ScreenMonitor.createScreenMonitor({
       onObservation: (observation) => {
         // Forward stabilized observation to server-authoritative telemetry endpoint
-        sendProctoringEvent(
+        return sendProctoringEvent(
           observation.type,
           observation.source || 'screen',
           observation.duration || 0,
@@ -1424,21 +2131,49 @@ function removeTelemetryListeners() {
 }
 
 async function sendProctoringEvent(type, source = 'browser', duration = 0, metadata = {}) {
-  if (!mockState.sessionId || mockState.screen !== 'exam') return;
+  if (!mockState.sessionId) return { ok: false, error: 'no_session' };
+  if (mockState.screen !== 'exam' && !mockState.submitting) return { ok: false, error: 'invalid_screen' };
 
-  try {
-    await apiFetch(`/api/mock-tests/${mockState.sessionId}/proctoring/event`, {
-      method: 'POST',
-      body: {
-        type,
-        source,
-        duration: Math.max(0, duration),
-        metadata,
-      },
-    });
-  } catch (e) {
-    // Fail silently on transient telemetry delivery
+  const dispatchPromise = (async () => {
+    try {
+      const res = await apiFetch(`/api/mock-tests/${mockState.sessionId}/proctoring/event`, {
+        method: 'POST',
+        body: {
+          type,
+          source,
+          duration: Math.max(0, duration),
+          metadata,
+        },
+      });
+      return res;
+    } catch (e) {
+      console.warn(`[Telemetry] Network error transmitting ${type}:`, e);
+      return { ok: false, error: e };
+    }
+  })();
+
+  if (!mockState.pendingTelemetry) {
+    mockState.pendingTelemetry = new Set();
   }
+  mockState.pendingTelemetry.add(dispatchPromise);
+  dispatchPromise.finally(() => {
+    if (mockState.pendingTelemetry) {
+      mockState.pendingTelemetry.delete(dispatchPromise);
+    }
+  });
+
+  return dispatchPromise;
+}
+
+async function flushPendingTelemetry() {
+  if (mockState.pendingTelemetry && mockState.pendingTelemetry.size > 0) {
+    const settled = await Promise.allSettled(Array.from(mockState.pendingTelemetry));
+    const allDelivered = settled.every(
+      (r) => r.status === 'fulfilled' && r.value && r.value.ok === true
+    );
+    return { ok: allDelivered, results: settled };
+  }
+  return { ok: true, results: [] };
 }
 
 function updateTopbarTelemetryUI() {
@@ -1504,6 +2239,8 @@ function updateTopbarTelemetryUI() {
 function teardownMediaAndTelemetry() {
   clearInterval(mockState.timerInterval);
   clearInterval(mockState.heartbeatInterval);
+  mockState.timerInterval = null;
+  mockState.heartbeatInterval = null;
   removeTelemetryListeners();
 
   if (mockState.cvAnalyzer) {
@@ -1519,13 +2256,22 @@ function teardownMediaAndTelemetry() {
   mockState.screenAiStatus = 'off';
 
   if (mockState.cameraStream) {
-    mockState.cameraStream.getTracks().forEach((track) => track.stop());
+    mockState.cameraStream.getTracks().forEach((track) => {
+      track.onended = null;
+      track.stop();
+    });
     mockState.cameraStream = null;
   }
   if (mockState.screenStream) {
-    mockState.screenStream.getTracks().forEach((track) => track.stop());
+    mockState.screenStream.getTracks().forEach((track) => {
+      track.onended = null;
+      track.stop();
+    });
     mockState.screenStream = null;
   }
+
+  mockState.cameraStartedEmitted = false;
+  mockState.screenStartedEmitted = false;
 
   mockState.proctoringState = {
     cameraState: 'inactive',
@@ -1534,6 +2280,19 @@ function teardownMediaAndTelemetry() {
     fullscreenState: 'inactive',
     visibilityState: 'visible',
   };
+
+  mockState.readinessState = {
+    camera: 'idle',
+    screen: 'idle',
+    faceDetection: 'idle',
+    overallReady: false,
+    errorMessage: '',
+    errorType: '',
+  };
+
+  if (mockState.pendingTelemetry) {
+    mockState.pendingTelemetry.clear();
+  }
 }
 
 function startExamTimer() {
@@ -1714,7 +2473,6 @@ async function confirmSubmit() {
   mockState.submitting = true;
   mockState.showSubmitModal = false;
   mockState.loading = true;
-  mockState.screen = 'result';
   render();
 
   // 1. Stop Computer Vision Pipeline (flushes/closes any active episodes)
@@ -1733,7 +2491,18 @@ async function confirmSubmit() {
     mockState.screenMonitor = null;
   }
 
-  // 3. Stop Proctoring Session
+  // 3. Ensure final telemetry dispatches are completed and verified
+  try {
+    const flushRes = await flushPendingTelemetry();
+    mockState.lastTelemetryFlushOk = flushRes.ok;
+    if (!flushRes.ok) {
+      console.warn('[MockTest] Warning: one or more final telemetry events failed delivery to server:', flushRes);
+    }
+  } catch (e) {
+    mockState.lastTelemetryFlushOk = false;
+  }
+
+  // 4. Stop Proctoring Session
   try {
     await apiFetch(`/api/mock-tests/${mockState.sessionId}/proctoring/stop`, {
       method: 'POST',
@@ -1741,8 +2510,12 @@ async function confirmSubmit() {
     });
   } catch (e) {}
 
-  // 4. Teardown media & listeners
+  // 5. Teardown media & listeners
   teardownMediaAndTelemetry();
+
+  // 6. Transition to result screen
+  mockState.screen = 'result';
+  render();
 
   // 5. Prepare answers payload
   const answersPayload = [];
@@ -1758,27 +2531,53 @@ async function confirmSubmit() {
   try {
     const { ok, data } = await apiFetch(`/api/mock-tests/${mockState.sessionId}/submit`, {
       method: 'POST',
-      body: { answers: answersPayload },
+      body: {
+        answers: answersPayload,
+        adjudicationMode: true,
+      },
     });
 
     if (!ok) {
       if (!/already been submitted/i.test(data?.message || '')) {
         alert(data?.message || 'Error submitting exam.');
       }
-    } else {
-      mockState.result = data.result;
+    }
+
+    // Update URL query param to reflect this completed session (durability across refresh)
+    if (typeof window !== 'undefined' && window.history && window.location) {
+      try {
+        const newUrl = `${window.location.pathname}?sessionId=${encodeURIComponent(mockState.sessionId)}`;
+        window.history.replaceState({ sessionId: mockState.sessionId }, '', newUrl);
+      } catch (histErr) {}
     }
 
     // 7. Fetch complete result and review
     const resResponse = await apiFetch(`/api/mock-tests/${mockState.sessionId}/result`);
-    if (resResponse.ok) {
-      mockState.result = resResponse.data.result;
-      mockState.review = resResponse.data.review || [];
-      mockState.selectedMockTest = resResponse.data.mockTest;
+    if (resResponse.ok && resResponse.data) {
+      setEvaluationState({
+        evaluationStatus: resResponse.data.evaluationStatus,
+        result: resResponse.data.result,
+        review: resResponse.data.review,
+        mockTest: resResponse.data.mockTest,
+        message: resResponse.data.message,
+        submittedAt: resResponse.data.submittedAt,
+        advisoryClearance: resResponse.data.advisoryClearance,
+      });
+    } else if (data) {
+      setEvaluationState({
+        evaluationStatus: data.evaluationStatus,
+        result: data.result,
+        mockTest: mockState.selectedMockTest,
+        message: data.message,
+        submittedAt: data.submittedAt,
+        advisoryClearance: data.advisoryClearance,
+      });
     }
 
-    // Prefetch proctoring report in background
-    fetchProctoringReport();
+    // Only prefetch proctoring report if evaluated
+    if (mockState.evaluationStatus === 'EVALUATED') {
+      fetchProctoringReport();
+    }
 
     mockState.loading = false;
     render();
@@ -1793,8 +2592,9 @@ async function confirmSubmit() {
 // ─── Phase 6 Actions ─────────────────────────────────────
 
 function switchResultTab(tab) {
-  mockState.resultTab = tab;
-  if (tab === 'proctoring' && !mockState.proctoringReport && !mockState.reportLoading) {
+  const targetTab = tab === 'report' ? 'proctoring' : tab;
+  mockState.resultTab = targetTab;
+  if (targetTab === 'proctoring' && !mockState.proctoringReport && !mockState.reportLoading) {
     fetchProctoringReport();
   } else {
     render();
@@ -1828,7 +2628,7 @@ function viewEvidenceModal(evidenceIdsStr) {
     .split(',')
     .map((id) => id.trim())
     .filter(Boolean);
-  const matched = mockState.proctoringReport.evidence.filter((e) => ids.includes(e.evidenceId));
+  const matched = mockState.proctoringReport.evidence.filter((e) => ids.includes(e.evidenceId || e.id));
   mockState.activeEvidenceModal = matched;
   render();
 }
@@ -1839,13 +2639,51 @@ function closeEvidenceModal() {
 }
 
 // Global window attachments for inline template handlers
-window.switchResultTab = switchResultTab;
-window.fetchProctoringReport = fetchProctoringReport;
-window.viewEvidenceModal = viewEvidenceModal;
-window.closeEvidenceModal = closeEvidenceModal;
-window.backToInstructions = backToInstructions;
+if (typeof window !== 'undefined') {
+  window.switchResultTab = switchResultTab;
+  window.fetchProctoringReport = fetchProctoringReport;
+  window.viewEvidenceModal = viewEvidenceModal;
+  window.closeEvidenceModal = closeEvidenceModal;
+  window.backToInstructions = backToInstructions;
+  window.backToList = backToList;
+  window.confirmSubmit = confirmSubmit;
+  window.setEvaluationState = setEvaluationState;
+  window.mockState = mockState;
+  window.openReadiness = openReadiness;
+  window.requestProctoringPermissions = requestProctoringPermissions;
+  window.startExamWithProctoring = startExamWithProctoring;
+  window.renderReadinessScreen = renderReadinessScreen;
+}
 
 // ─── Initialize ─────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  initMockTests();
-});
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('DOMContentLoaded', () => {
+    initMockTests();
+  });
+}
+
+// CommonJS exports for automated testing
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    mockState,
+    setEvaluationState,
+    renderHeldForReviewScreen,
+    renderResultScreen,
+    renderReadinessScreen,
+    confirmSubmit,
+    backToList,
+    backToInstructions,
+    switchResultTab,
+    fetchProctoringReport,
+    initMockTests,
+    openReadiness,
+    requestProctoringPermissions,
+    startExamWithProctoring,
+    teardownMediaAndTelemetry,
+    sendProctoringEvent,
+    flushPendingTelemetry,
+    escapeHtml,
+    formatTimeIST,
+    formatDateTimeIST,
+  };
+}

@@ -69,10 +69,23 @@
 
       this.status = 'initializing';
       this.onStatusChange({ status: 'initializing' });
-
       try {
-        const visionModule =
+        let visionModule =
           (typeof window !== 'undefined' && (window.tasksVision || window)) || {};
+
+        if (!visionModule.FilesetResolver || !visionModule.FaceLandmarker) {
+          try {
+            const importedModule = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+            visionModule = importedModule;
+            if (typeof window !== 'undefined') {
+              window.tasksVision = importedModule;
+              window.FilesetResolver = importedModule.FilesetResolver;
+              window.FaceLandmarker = importedModule.FaceLandmarker;
+            }
+          } catch (importErr) {
+            console.warn('[WebcamCv] Dynamic import of MediaPipe failed:', importErr);
+          }
+        }
 
         if (!visionModule.FilesetResolver || !visionModule.FaceLandmarker) {
           throw new Error('MediaPipe tasks-vision bundle is not loaded.');
@@ -99,6 +112,7 @@
       } catch (err) {
         console.warn('[WebcamCv] MediaPipe unavailable, graceful degradation active:', err.message || err);
         this.status = 'unavailable';
+        this.initError = err.message || String(err);
         this.onStatusChange({ status: 'unavailable', error: err.message || String(err) });
       }
     }

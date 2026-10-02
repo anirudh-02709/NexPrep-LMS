@@ -151,7 +151,7 @@ async function loadTestStats() {
 
     const streakCount = typeof dashboard.currentStreak !== 'undefined'
       ? dashboard.currentStreak
-      : (typeof dashboard.streak !== 'undefined' ? dashboard.streak : 0);
+      : 0;
     setText('home-current-streak', `${streakCount} days`);
 
     updateRecentActivity();

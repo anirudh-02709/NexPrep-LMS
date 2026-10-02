@@ -1,20 +1,52 @@
 const { classifyEvent } = require('./temporalCorrelationService');
 
 /**
- * Format timestamp as HH:MM:SS string in UTC for deterministic readable output.
+ * Format timestamp as HH:MM:SS IST string for consistent human-readable proctoring presentation.
+ * Preserves the underlying date instant without mutation.
  */
-function formatTimeUTC(dateInput) {
-  if (!dateInput) return '00:00:00';
+function formatTimeIST(dateInput) {
+  if (!dateInput) return '00:00:00 IST';
   const d = new Date(dateInput);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+  if (isNaN(d.getTime())) return '00:00:00 IST';
+  const timeStr = d.toLocaleTimeString('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  return `${timeStr} IST`;
 }
+
+/**
+ * Format timestamp as DD/MM/YYYY, HH:MM:SS IST string for consistent human-readable date-time presentation.
+ * Preserves the underlying date instant without mutation.
+ */
+function formatDateTimeIST(dateInput) {
+  if (!dateInput) return 'N/A';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return 'N/A';
+  const dtStr = d.toLocaleString('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  return `${dtStr} IST`;
+}
+
+// Retain alias for backwards compatibility if referenced
+const formatTimeUTC = formatTimeIST;
 
 /**
  * Generates neutral, factual description for an OBSERVED raw proctoring event.
  */
 function generateObservedDescription(event) {
-  const timeStr = formatTimeUTC(event.timestamp);
+  const timeStr = formatTimeIST(event.timestamp);
   const durSec = event.duration ? (event.duration / 1000).toFixed(1) : null;
 
   switch (event.type) {
@@ -151,13 +183,19 @@ function extractEvidence(events = [], episodes = []) {
 
     evidenceList.push({
       id: `ev_obs_${idx + 1}`,
+      evidenceId: `ev_obs_${idx + 1}`,
       type: 'OBSERVED',
+      nature: 'OBSERVED',
       source: ev.source || 'browser',
       eventType: ev.type,
       eventIds: [evId],
       episodeId,
       startedAt: startTime,
       endedAt: endTime,
+      startedAtFormatted: formatDateTimeIST(startTime),
+      endedAtFormatted: formatDateTimeIST(endTime),
+      timestamp: startTime,
+      timestampFormatted: formatTimeIST(startTime),
       durationMs: durMs,
       description: generateObservedDescription(ev),
       metadata: ev.metadata && typeof ev.metadata === 'object' ? ev.metadata : {},
@@ -170,13 +208,24 @@ function extractEvidence(events = [], episodes = []) {
     const epId = String(ep._id || ep.id || `ep_${epIdx + 1}`);
     (ep.relationships || []).forEach((rel) => {
       const relEventIds = (rel.eventIds || []).map(String);
+      const derId = `ev_der_${relCounter++}`;
       evidenceList.push({
-        id: `ev_der_${relCounter++}`,
+        id: derId,
+        evidenceId: derId,
         type: 'DERIVED',
+        nature: 'DERIVED',
+        source: 'correlation',
+        eventType: rel.type,
         relationshipType: rel.type,
         eventIds: relEventIds,
         episodeId: epId,
         deltaMs: Number(rel.deltaMs) || 0,
+        startTime: rel.startTime ? new Date(rel.startTime) : undefined,
+        startedAtFormatted: rel.startTime ? formatDateTimeIST(rel.startTime) : undefined,
+        endTime: rel.endTime ? new Date(rel.endTime) : undefined,
+        endedAtFormatted: rel.endTime ? formatDateTimeIST(rel.endTime) : undefined,
+        timestamp: rel.startTime ? new Date(rel.startTime) : undefined,
+        timestampFormatted: rel.startTime ? formatTimeIST(rel.startTime) : undefined,
         description: generateDerivedDescription(rel),
       });
     });
@@ -204,6 +253,8 @@ function computeStatistics(events = [], episodes = [], mockSession = null, procS
   let sessionDurationMs = 0;
   if (procSession?.startedAt && procSession?.endedAt) {
     sessionDurationMs = Math.max(0, new Date(procSession.endedAt).getTime() - new Date(procSession.startedAt).getTime());
+  } else if (mockSession?.startedAt && mockSession?.submittedAt) {
+    sessionDurationMs = Math.max(0, new Date(mockSession.submittedAt).getTime() - new Date(mockSession.startedAt).getTime());
   } else if (procSession?.startedAt && procSession?.lastHeartbeatAt) {
     sessionDurationMs = Math.max(0, new Date(procSession.lastHeartbeatAt).getTime() - new Date(procSession.startedAt).getTime());
   } else if (nonHeartbeatEvents.length >= 2) {
@@ -258,7 +309,7 @@ function computeStatistics(events = [], episodes = [], mockSession = null, procS
   let longestFaceAbsenceMs = 0;
   let longestScreenChangeEpisodeMs = 0;
   nonHeartbeatEvents.forEach((e) => {
-    const dur = Number(e.duration) || 0;
+    const dur = Number(e.duration) || (e.metadata && Number(e.metadata.durationMs)) || (e.metadata && Number(e.metadata.confirmedDurationMs)) || 0;
     if (e.type === 'FACE_ABSENT' && dur > longestFaceAbsenceMs) {
       longestFaceAbsenceMs = dur;
     }
@@ -266,6 +317,24 @@ function computeStatistics(events = [], episodes = [], mockSession = null, procS
       longestScreenChangeEpisodeMs = dur;
     }
   });
+
+  if (longestFaceAbsenceMs === 0) {
+    episodes.forEach((ep) => {
+      const hasFace = (ep.signalTypes || []).includes('FACE_ABSENT');
+      if (hasFace && (ep.durationMs || 0) > longestFaceAbsenceMs) {
+        longestFaceAbsenceMs = ep.durationMs;
+      }
+    });
+  }
+
+  if (longestScreenChangeEpisodeMs === 0) {
+    episodes.forEach((ep) => {
+      const hasScreen = (ep.signalTypes || []).includes('SCREEN_VIEW_CHANGED');
+      if (hasScreen && (ep.durationMs || 0) > longestScreenChangeEpisodeMs) {
+        longestScreenChangeEpisodeMs = ep.durationMs;
+      }
+    });
+  }
 
   let longestAttentionEpisodeMs = 0;
   episodes.forEach((ep) => {
@@ -275,10 +344,23 @@ function computeStatistics(events = [], episodes = [], mockSession = null, procS
     }
   });
 
+  // Also check individual attention event durations (e.g. FOCUS_REGAINED duration from blur)
+  let maxAttentionEventDuration = 0;
+  nonHeartbeatEvents.forEach((e) => {
+    const dur = Number(e.duration) || (e.metadata && Number(e.metadata.durationMs)) || 0;
+    if (classifyEvent(e.type) === 'ATTENTION' && dur > maxAttentionEventDuration) {
+      maxAttentionEventDuration = dur;
+    }
+  });
+
+  const longestFocusLossMs = Math.max(longestAttentionEpisodeMs, maxAttentionEventDuration);
+
   return {
     sessionDurationMs,
     totalEvents: nonHeartbeatEvents.length,
+    totalRawEvents: nonHeartbeatEvents.length,
     totalEpisodes: episodes.length,
+    totalTemporalEpisodes: episodes.length,
     totalRelationships,
     eventCounts,
     episodeCountsByCategory,
@@ -287,8 +369,11 @@ function computeStatistics(events = [], episodes = [], mockSession = null, procS
     screenInterruptions,
     fullscreenExits,
     longestFaceAbsenceMs,
-    longestAttentionEpisodeMs,
+    longestFaceAbsentMs: longestFaceAbsenceMs,
+    longestAttentionEpisodeMs: longestFocusLossMs,
+    longestFocusLossMs,
     longestScreenChangeEpisodeMs,
+    longestScreenViewChangedMs: longestScreenChangeEpisodeMs,
   };
 }
 
@@ -316,8 +401,8 @@ function buildTimeline(episodes = [], evidenceList = []) {
     });
 
     // Formulate deterministic template narrative
-    const startStr = formatTimeUTC(ep.startedAt);
-    const endStr = formatTimeUTC(ep.endedAt);
+    const startStr = formatTimeIST(ep.startedAt);
+    const endStr = formatTimeIST(ep.endedAt);
     const durSec = ((ep.durationMs || 0) / 1000).toFixed(1);
     const signals = ep.signalTypes || [];
 
@@ -330,12 +415,19 @@ function buildTimeline(episodes = [], evidenceList = []) {
     return {
       id: `tl_${idx + 1}`,
       episodeId: epId,
+      type: signals.length > 0 ? signals.join(' + ') : 'Episode',
+      signalTags: signals,
       startedAt: new Date(ep.startedAt),
       endedAt: new Date(ep.endedAt),
+      startedAtFormatted: formatTimeIST(ep.startedAt),
+      endedAtFormatted: formatTimeIST(ep.endedAt),
       durationMs: ep.durationMs || 0,
       signals,
       evidenceIds: matchedEvidenceIds,
       answerInteractionContext: ep.answerInteractionContext || null,
+      questionContext: ep.answerInteractionContext
+        ? `Q${ep.answerInteractionContext.questionNumber || ''} (${ep.answerInteractionContext.section || ''})`
+        : null,
       narrative,
     };
   });
@@ -384,13 +476,23 @@ function buildRelationships(episodes = [], evidenceList = []) {
         relatedEvidenceIds.push(derId);
       }
 
+      const startTime = new Date(rel.startTime);
+      const endTime = new Date(rel.endTime);
+      const durationMs = Math.max(0, endTime.getTime() - startTime.getTime());
+
       relationships.push({
         id: `rel_${relIdCounter++}`,
         type: rel.type,
         deltaMs: rel.deltaMs,
+        deltaTimeMs: rel.deltaMs,
         episodeId: epId,
-        startTime: new Date(rel.startTime),
-        endTime: new Date(rel.endTime),
+        startTime,
+        startedAt: startTime,
+        startedAtFormatted: formatTimeIST(startTime),
+        endTime,
+        endedAt: endTime,
+        endedAtFormatted: formatTimeIST(endTime),
+        durationMs,
         evidenceIds: relatedEvidenceIds,
         description: generateDerivedDescription(rel),
       });
@@ -438,7 +540,10 @@ function buildTechnicalObservations(events = [], evidenceList = []) {
       obsList.push({
         id: `tech_${idx + 1}`,
         type: e.type,
+        title: e.type.replace(/_/g, ' '),
+        category: classifyEvent(e.type) === 'SESSION_MEDIA' ? 'Hardware / Lifecycle' : classifyEvent(e.type),
         timestamp: new Date(e.timestamp),
+        timestampFormatted: formatTimeIST(e.timestamp),
         evidenceIds: evidenceId ? [evidenceId] : [],
         description: generateObservedDescription(e),
       });
@@ -534,34 +639,100 @@ function synthesizeReport(mockSession, procSession, mockTest, events = [], episo
   const evidenceList = extractEvidence(events, episodes);
   const statistics = computeStatistics(events, episodes, mockSession, procSession);
 
-  // Derive historical metrics for proctoring overview (do not hide interruptions behind final state)
+  // Derive historical metrics for proctoring overview (distinguish runtime vs teardown state)
   const cameraStarted = events.some((e) => e.type === 'CAMERA_STARTED');
   const screenShareStarted = events.some((e) => e.type === 'SCREEN_SHARE_STARTED');
   const fullscreenEntered = events.some((e) => e.type === 'FULLSCREEN_ENTERED');
+  const microphoneStarted = events.some((e) => e.type === 'MICROPHONE_STARTED');
+
+  const cameraStopCount = statistics.cameraInterruptions;
+  const screenShareStopCount = statistics.screenInterruptions;
+  const fullscreenExitCount = statistics.fullscreenExits;
+  const microphoneStopCount = statistics.microphoneInterruptions || events.filter((e) => e.type === 'MICROPHONE_STOPPED').length;
+
+  // Runtime states: active if started and zero interruptions, interrupted if stop count > 0, inactive if never started
+  const cameraRuntimeState = cameraStarted
+    ? (cameraStopCount === 0 ? 'active' : 'interrupted')
+    : (procSession?.cameraState === 'active' ? 'active' : 'inactive');
+
+  const screenShareRuntimeState = screenShareStarted
+    ? (screenShareStopCount === 0 ? 'active' : 'interrupted')
+    : (procSession?.screenShareState === 'active' ? 'active' : 'inactive');
+
+  const fullscreenRuntimeState = fullscreenEntered
+    ? (fullscreenExitCount === 0 ? 'active' : 'interrupted')
+    : (procSession?.fullscreenState === 'active' ? 'active' : 'inactive');
+
+  const microphoneRuntimeState = microphoneStarted
+    ? (microphoneStopCount === 0 ? 'active' : 'interrupted')
+    : (procSession?.microphoneState === 'active' ? 'active' : 'inactive');
+
+  // Backwards-compatible properties
+  const cameraState = cameraRuntimeState === 'active' ? 'active' : 'inactive';
+  const screenShareState = screenShareRuntimeState === 'active' ? 'active' : 'inactive';
+  const fullscreenState = fullscreenRuntimeState === 'active' ? 'active' : 'inactive';
+  const microphoneState = microphoneRuntimeState === 'active' ? 'active' : 'inactive';
 
   const proctoringOverview = {
     cameraStarted,
-    cameraStopCount: statistics.cameraInterruptions,
+    cameraStopCount,
+    cameraRuntimeState,
+    cameraState,
     finalCameraState: procSession?.cameraState || 'inactive',
+
     screenShareStarted,
-    screenShareStopCount: statistics.screenInterruptions,
+    screenShareStopCount,
+    screenShareRuntimeState,
+    screenShareState,
     finalScreenShareState: procSession?.screenShareState || 'inactive',
+
     fullscreenEntered,
-    fullscreenExitCount: statistics.fullscreenExits,
+    fullscreenExitCount,
+    fullscreenRuntimeState,
+    fullscreenState,
     finalFullscreenState: procSession?.fullscreenState || 'inactive',
+
+    microphoneStarted,
+    microphoneStopCount,
+    microphoneRuntimeState,
+    microphoneState,
+    finalMicrophoneState: procSession?.microphoneState || 'inactive',
+
     totalEpisodes: episodes.length,
+    totalTemporalEpisodes: episodes.length,
     totalRelationships: statistics.totalRelationships,
   };
 
+  const sessionDurationSec = Math.round(
+    statistics.sessionDurationMs > 0
+      ? statistics.sessionDurationMs / 1000
+      : (mockSession?.startedAt && mockSession?.submittedAt
+          ? (new Date(mockSession.submittedAt).getTime() - new Date(mockSession.startedAt).getTime()) / 1000
+          : (mockTest?.duration ? mockTest.duration * 60 : 0))
+  );
+
+  const sessionStarted = mockSession?.startedAt ? new Date(mockSession.startedAt) : (procSession?.startedAt ? new Date(procSession.startedAt) : null);
+  const sessionEnded = mockSession?.submittedAt ? new Date(mockSession.submittedAt) : (procSession?.endedAt ? new Date(procSession.endedAt) : (mockSession?.status === 'completed' ? new Date() : null));
+
   const sessionOverview = {
     testTitle: mockTest?.title || 'JEE Main Mock Test',
+    studentName: mockSession?.user?.name || (mockSession?.user ? String(mockSession.user) : 'Student'),
+    finalStatus: mockSession?.status || 'completed',
     status: mockSession?.status || 'completed',
     durationMinutes: mockTest?.duration || 60,
+    examDurationSeconds: sessionDurationSec,
     totalQuestions: mockTest?.totalQuestions || (mockSession?.answers ? mockSession.answers.length : 30),
     score: mockSession?.result?.score !== undefined ? mockSession.result.score : null,
     maxMarks: mockSession?.result?.maxMarks !== undefined ? mockSession.result.maxMarks : null,
-    startedAt: mockSession?.startedAt ? new Date(mockSession.startedAt) : null,
-    submittedAt: mockSession?.submittedAt ? new Date(mockSession.submittedAt) : null,
+    startedAt: sessionStarted,
+    submittedAt: sessionEnded,
+    examStartedAt: sessionStarted,
+    examEndedAt: sessionEnded,
+    startedAtFormatted: formatDateTimeIST(sessionStarted),
+    submittedAtFormatted: formatDateTimeIST(sessionEnded),
+    examStartedAtFormatted: formatDateTimeIST(sessionStarted),
+    examEndedAtFormatted: formatDateTimeIST(sessionEnded),
+    timezone: 'IST (UTC+05:30)',
   };
 
   const timeline = buildTimeline(episodes, evidenceList);
@@ -569,7 +740,14 @@ function synthesizeReport(mockSession, procSession, mockTest, events = [], episo
   const technicalObservations = buildTechnicalObservations(events, evidenceList);
   const unknowns = buildUnknowns(events, evidenceList);
 
+  const limitationsAndUnknowns = unknowns.map((u) => ({
+    ...u,
+    area: u.category,
+    statement: u.description,
+  }));
+
   return {
+    overview: sessionOverview,
     sessionOverview,
     proctoringOverview,
     statistics,
@@ -577,11 +755,15 @@ function synthesizeReport(mockSession, procSession, mockTest, events = [], episo
     relationships,
     technicalObservations,
     unknowns,
+    limitationsAndUnknowns,
     evidence: evidenceList,
   };
 }
 
 module.exports = {
+  formatTimeIST,
+  formatDateTimeIST,
+  formatTimeUTC,
   extractEvidence,
   computeStatistics,
   buildTimeline,

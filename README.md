@@ -2,392 +2,199 @@
 
 [![NexPrep Backend CI](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml/badge.svg)](https://github.com/anirudh-02709/NexPrep-LMS/actions/workflows/ci.yml)
 ![Node Version](https://img.shields.io/badge/node-20.x%20%7C%2022.x-brightgreen)
-![Tests](https://img.shields.io/badge/tests-210%20passing-success)
-![Suites](https://img.shields.io/badge/suites-15%20passed-blue)
+![Tests](https://img.shields.io/badge/tests-301%20passing-success)
+![Suites](https://img.shields.io/badge/suites-31%20passed-blue)
 ![License](https://img.shields.io/badge/license-ISC-blue)
 
-NexPrep is a full-stack Learning Management System (LMS) engineered for students preparing for the Joint Entrance Examination (JEE). The platform delivers structured chapter-wise concept modules across Physics, Chemistry, and Mathematics, server-authoritative timed test assessments, persistent chapter progress telemetry with continue-learning resumption, timezone-independent consecutive practice streaks, and rule-based performance analytics.
+NexPrep is a full-stack Learning Management System (LMS) designed for students preparing for the Joint Entrance Examination (JEE). The platform provides structured chapter-wise concept modules across Physics, Chemistry, and Mathematics, server-authoritative practice quizzes with streak tracking, and JEE Main-style timed mock tests.
 
-The application couples a static, lightweight multi-page frontend hosted on Netlify with an Express REST API deployed on Render, backed by MongoDB Atlas for user data and Firebase for Google OAuth identity verification.
+To preserve testing integrity without compromising candidate privacy, NexPrep pairs server-authoritative exam sessions with a client-side proctoring pipeline: on-device computer vision and screen structural monitoring generate observable telemetry that is correlated into bounded temporal episodes. An authoritative assessment engine and evaluation gate ensure that academic marks are released only when an attempt reaches `EVALUATED` (indicating no configured deterministic review condition was detected). Attempts requiring technical review (`REVIEW_REQUIRED`) or with insufficient monitoring data (`INSUFFICIENT_DATA`) are held (`HELD_FOR_REVIEW`) with candidate answers preserved for review.
 
 ---
 
-## Live Deployment
+## Live Deployments
 
 | Component | Platform | URL / Details |
 | :--- | :--- | :--- |
-| **Frontend Web Application** | Netlify | [Live Production App](https://precious-griffin-831939.netlify.app/) |
+| **Frontend Application** | Netlify | [Live Production App](https://precious-griffin-831939.netlify.app/) |
 | **Backend REST API** | Render | [API Gateway](https://nexprep-backend.onrender.com) |
-| **Database** | MongoDB Atlas | Cloud database hosting collections: `users`, `progresses`, `testresults` |
-| **OAuth Identity Provider** | Firebase Auth | Google Sign-In with server-side token verification |
+| **Database** | MongoDB Atlas | Cloud MongoDB hosting core collections and telemetry stores |
+| **OAuth Identity Provider** | Firebase Auth | Google Sign-In with server-side ID token verification |
 
 ---
 
 ## Key Features
 
-* **Dual Authentication & Unified Identity**: Supports local credentials (passwords hashed with `bcryptjs`, work factor: 12 rounds) and Google OAuth (Firebase Client SDK). User accounts are linked across authentication providers by normalized email address (`lowercase` and `trim`).
-* **Server-Authoritative Test & Scoring Engine**: Correct answer keys are maintained exclusively on the server and are never delivered to the client during test generation (`GET /api/tests/questions`). Submissions are validated and graded server-side against an authoritative 120-question bank, preventing client-side answer-key inspection and client-side score fabrication.
-* **JEE Main Mock Test Subsystem**: Alongside existing chapter-wise practice tests, NexPrep includes a separate JEE Main Mock Test subsystem (`/api/mock-tests/*`, `MockTest`, `MockTestSession`, and `mock-test.html`). It features multi-section navigation across Physics, Chemistry, and Mathematics, server-authoritative countdown timing, +4 / -1 / 0 marking scheme, resilient attempt restoration upon browser refresh, and comprehensive post-exam analytics.
-* **Foundational Exam Proctoring & Telemetry Infrastructure**: Includes an environment proctoring subsystem (`ProctoringSession`, `ProctoringEvent`, `/api/mock-tests/:sessionId/proctoring/*`) designed to establish client readiness verification (camera, microphone, screen-sharing, fullscreen support) and capture server-authoritative browser telemetry (debounced focus lost/regained episodes, page visibility changes, fullscreen transitions, and media track termination). All events are immutable with server-assigned timestamps.
-* **Client-Side Webcam Computer Vision (Phase 3)**: Introduces on-device browser computer vision via `@mediapipe/tasks-vision` Face Landmarker. Strictly processes video frames locally without uploading raw media or making cloud vision API calls. Emits objective telemetry observations (`FACE_PRESENT`, `FACE_ABSENT`, `MULTIPLE_FACES`, `HEAD_POSE_DEVIATION`) stabilized by a pure, DOM-independent observation state machine with configurable temporal hysteresis. Contains zero subjective cheating judgments or suspicion scores.
-* **Client-Side Screen Monitoring & Intelligence (Phase 4)**: Captures user-selected display surfaces via `getDisplayMedia` and samples frames locally onto an in-memory 64×48 canvas without uploading raw images or video blobs. Computes deterministic multi-region spatial luminance and chromatic distributions to assess visual resemblance to the expected exam UI. Emits objective telemetry events (`SCREEN_SURFACE_IDENTIFIED`, `SCREEN_VIEW_STABLE`, `SCREEN_VIEW_CHANGED`, `SCREEN_VIEW_UNAVAILABLE`) governed by a DOM-independent temporal stabilization state machine with 1500ms hysteresis. Zero cheating scores, suspicion probabilities, or external AI inference.
-* **Event Correlation & Temporal Analysis Engine (Phase 5)**: Transforms raw, independent proctoring observations (browser telemetry, webcam CV, screen monitoring) into bounded temporal episodes and explicit pairwise observable relationships using a configurable 3000ms window. Features deterministic event categorization, bounded cluster growth (preventing infinite chaining), and authoritative answer-interaction context linkage (`answerInteractionContext`). Exposes an idempotent correlation API (`GET /api/mock-tests/:sessionId/proctoring/correlations`) while maintaining zero suspicion scores, cheating probabilities, or intent inference.
-* **Evidence-Grounded Proctoring Report & Reasoning (Phase 6)**: Transforms multi-stream telemetry and Phase 5 temporal correlation episodes into an objective, human-readable proctoring report (`GET /api/mock-tests/:sessionId/proctoring/report`). Implements a deterministic facts and reasoning engine with an append-only evidence model providing bidirectional traceability (`evidenceId` ↔ `episodeId` ↔ raw `eventIds`), historical hardware telemetry tracking (interruption counts independent of final states), explicit system limitations and unknowns, and post-exam UI with tab navigation and evidence drill-down modal. Strictly zero cheating scores, suspicion probabilities, or student intent inferences.
-* **Proctoring Evaluation, Benchmarking & Hardening (Phase 7)**: Comprehensive automated verification across 43 specialized evaluation scenarios covering the full temporal correlation matrix (Rules A through G), bounded clustering, full evidence graph traceability, safety assertions (zero suspicion/cheating scores), webcam/screen hysteresis and jitter noise suppression, 1,000-event synthetic load benchmark (< 10ms execution), false observation suppression, and zero academic grading regression. Explicitly documents manual evaluation boundaries (`NOT_MEASURED_AUTOMATICALLY`) for real-world client-side camera/screen hardware constraints.
-* **Final Integration & Hardened Proctoring Subsystem (Phase 8)**: Verified, deterministic end-to-end integration across all exam stages: Catalog → Instructions → Readiness & Device Permissions → Timed Exam with Live Telemetry → Submission / Expiry → Academic Scoring (+4 / -1 / 0) → Evidence-Grounded Proctoring Report → Bidirectional Evidence Drill-Down. Hardens media preview stream re-entrance, provides submission single-flight double-click protection with transient error recovery, enforces expired session scoring invariants while rejecting modifications, and maps a complete 20-scenario E2E matrix (18 automated, 2 manual-only permission dialogs).
-* **Granular Progress Telemetry & Resumption**: Chapter access and completion states are stored via atomic upsert operations (`$set`, `$setOnInsert`) on compound-unique indexed records (`{ user: 1, subject: 1, chapter: 1 }`). A dedicated continue-learning endpoint allows students to instantly resume their most recently studied module.
-* **Timezone-Independent Consecutive Practice Streaks**: An authoritative streak service calculates active daily practice streaks in UTC calendar days, providing deterministic streak evaluation across clients. The algorithm deduplicates multiple tests taken on the same calendar day, preserves the active streak if the user practiced yesterday but has not yet practiced today, and resets to 0 if both days are missed or if calendar gaps occur.
-* **Rule-Based Performance Analytics**: The dashboard computes overall score averages, subject-level performance percentages, detects strongest and weakest subject areas (triggering targeted study recommendations when averages fall below 60%), tracks 7-day consistency activity, and detects score trends across attempts.
-* **Compound-Indexed Query Pagination**: Test attempt history is paginated with boundary validation, leveraging a compound index on `{ user: 1, createdAt: -1 }` with lean document projection for minimal memory overhead and fast lookup.
-* **Single-Source Canonical Taxonomy**: The canonical curriculum taxonomy in `backend/data/taxonomy.js` acts as the single source of truth. A build-time compiler (`scripts/buildTaxonomy.js`) derives the frontend contract (`frontend/scripts/chapterNames.js`), while backend controllers and Mongoose schemas enforce valid subject and chapter values at runtime.
+### Learning & Practice Assessment
+* **Curriculum Taxonomy**: Structured curriculum covering 12 core chapters across Physics, Chemistry, and Mathematics, derived from a canonical backend source of truth.
+* **Chapter Practice Quizzes**: 10-question practice quizzes evaluated against a 120-question curated bank. Correct answer keys remain strictly on the server; clients receive sanitized question payloads.
+* **Practice Streak Telemetry**: Authoritative UTC-evaluated daily practice streaks that deduplicate same-day sessions and preserve momentum across consecutive practice days.
+* **Progress Resumption**: Chapter completion tracking supporting idempotent atomic upserts while enforcing one progress record per user/subject/chapter via a compound unique index.
+* **Performance Analytics**: Rule-based analytics computing subject-level proficiencies, overall averages, 7-day activity tracking, and targeted subject recommendations.
+
+### JEE Main Mock Testing & Proctoring
+* **Timed Mock Exam Sessions**: Multi-section exam navigation across Physics, Chemistry, and Mathematics (configured as a representative 60-minute, 30-question, 120-mark practice test with standard +4 / -1 / 0 marking).
+* **Server-Authoritative Countdown Timing**: Exam start, duration, and expiration timestamps are managed by the server. Expired sessions reject new answers while preserving saved progress.
+* **Client-Side Telemetry & Local Computer Vision**: Captures browser window focus loss, document visibility changes, and fullscreen state transitions. Runs on-device face and head-pose tracking via MediaPipe FaceLandmarker without streaming raw webcam video to any server.
+* **Local Screen Structural Monitoring**: Captures display surfaces via `getDisplayMedia()`, downscales frames to a local 64×48 canvas, extracts an 8-dimensional structural signature, and evaluates similarity against an exam baseline without capturing or uploading raw screenshots.
+* **Temporal Event Correlation**: Groups multi-stream telemetry into bounded temporal episodes within a configurable 3000ms window, identifying explicit pairwise observable relationships and linking server-authoritative answer interaction timestamps.
+* **Deterministic Assessment & Evaluation Gate**: Evaluates correlated episodes against deterministic rules to classify the attempt (`CLEAR`, `REVIEW_REQUIRED`, or `INSUFFICIENT_DATA`). Academic scoring is authorized and marks are released only when `CLEAR` (reaching `EVALUATED`). Attempts flagged for review transition to `HELD_FOR_REVIEW`, withholding score calculation while keeping candidate answers intact.
+* **Evidence Traceability & Access Boundaries**: Generates a traceable evidence structure linking report statements to temporal episodes and raw event records. Proctoring Evidence Reports are access-controlled for held attempts.
+
+### Authentication & Security
+* **Authentication**: Supports local email/password authentication (salted and hashed with `bcryptjs`, 12 rounds) and Google OAuth verified server-side with Firebase Admin SDK.
+* **Stateless Authorization**: Protected API routes require a signed JSON Web Token (JWT) transmitted via Bearer Authorization headers.
+* **Rate Limiting & Protection**: Express rate limiting on authentication routes (20 req / 15 min), Helmet HTTP security headers, CORS origin restrictions, and strict payload size limits.
 
 ---
 
 ## System Architecture
 
-```mermaid
-flowchart TD
-    subgraph Client ["Frontend Client - Netlify"]
-        UI["Static UI Views"]
-        ApiClient["auth.js and apiFetch"]
-        QuizEngine["Quiz Engine - test.js"]
-    end
-
-    subgraph Gateway ["Express REST API - Render"]
-        Security["Security and Rate Limiting"]
-        AuthMiddleware["JWT Middleware - protect"]
-        ErrorPipeline["Centralized Error Pipeline"]
-    end
-
-    subgraph Controllers ["Application Controllers and Services"]
-        AuthCtrl["authController.js"]
-        ProgressCtrl["progressController.js"]
-        TestCtrl["testController.js"]
-        ScoringSvc["testScoring.js"]
-        StreakSvc["streakService.js"]
-    end
-
-    subgraph Storage ["Data and External Services"]
-        Taxonomy["Taxonomy and Question Bank"]
-        MongoDB["MongoDB Atlas Database"]
-        FirebaseAdmin["Firebase Admin SDK"]
-    end
-
-    UI --> ApiClient
-    QuizEngine --> ApiClient
-    ApiClient -->|HTTP REST| Security
-
-    Security --> AuthCtrl
-    Security --> AuthMiddleware
-    AuthMiddleware --> ProgressCtrl
-    AuthMiddleware --> TestCtrl
-
-    AuthCtrl --> MongoDB
-    AuthCtrl --> FirebaseAdmin
-    ProgressCtrl --> MongoDB
-    ProgressCtrl --> Taxonomy
-    TestCtrl --> MongoDB
-    TestCtrl --> ScoringSvc
-    TestCtrl --> StreakSvc
-    ScoringSvc --> Taxonomy
-
-    Security --> ErrorPipeline
-    AuthMiddleware --> ErrorPipeline
+```text
+Student Browser
+      │
+      │ HTTPS / REST + Telemetry
+      ▼
+Frontend (Netlify)
+  • HTML / CSS / Vanilla JavaScript
+  • Client authentication state
+  • Timed mock-test UI & answer submission
+  • Local webcam & screen telemetry
+      │
+      ▼
+Node.js / Express API (Render)
+  • Authentication & authorization (JWT, bcrypt, Google OAuth)
+  • Server-authoritative exam timing & single-flight finalization
+  • Chapter quiz & mock-test scoring (+4 / -1 / 0)
+  • Telemetry ingestion & temporal correlation
+  • Deterministic assessment (Rules R1–R7) & evaluation gate
+      │
+      ▼
+MongoDB Atlas
+  • Users, progress, and chapter test results
+  • Timed mock-test sessions
+  • Proctoring telemetry, episodes, and assessment records
 ```
 
----
-
-## Authentication & Security
-
-NexPrep implements a defense-in-depth security model designed to ensure credential safety, origin integrity, and request rate control.
-
-### Authentication & Authorization Flow
-
-```mermaid
-flowchart TD
-    subgraph ClientAuth ["Client Authentication Options"]
-        LocalLogin["Student enters email and password"]
-        GoogleLogin["Student selects Continue with Google"]
-        GoogleToken["Firebase SDK returns Google ID token"]
-    end
-
-    subgraph GatewayAuth ["Express API Gateway"]
-        RateLimit["authLimiter: Rate limit check - 20 req per 15 min"]
-    end
-
-    subgraph Verification ["Authentication and User Verification"]
-        VerifyLocal["authController: Normalize email and compare bcrypt hash"]
-        VerifyGoogle["authController: Verify token via Firebase Admin SDK"]
-        UserRecord["MongoDB: Find or upsert user document"]
-        GenerateJWT["Generate signed JWT - 7-day expiration"]
-    end
-
-    subgraph ProtectedFlow ["Protected Route Authorization"]
-        ClientReq["Client sends request with Bearer JWT header"]
-        Protect["authMiddleware.protect: Verify JWT and find user"]
-        AllowRoute["Authorized: Route handler executes"]
-    end
-
-    LocalLogin --> RateLimit
-    GoogleLogin --> GoogleToken
-    GoogleToken --> RateLimit
-
-    RateLimit -->|POST /api/auth/login| VerifyLocal
-    RateLimit -->|POST /api/auth/google| VerifyGoogle
-
-    VerifyLocal --> UserRecord
-    VerifyGoogle --> UserRecord
-    UserRecord --> GenerateJWT
-    GenerateJWT -->|JWT returned to client| ClientReq
-
-    ClientReq --> Protect
-    Protect --> AllowRoute
-```
-
-### Security Controls
-
-* **Password Security**: Passwords are salted and hashed using `bcryptjs` with a work factor of 12 rounds. Plaintext passwords are never stored or logged.
-* **Rate Limiting**: `express-rate-limit` enforces a strict 20 requests per 15-minute quota on `/api/auth/register`, `/api/auth/login`, and `/api/auth/google` to mitigate brute-force and credential stuffing attacks.
-* **HTTP Security Headers**: `helmet` manages standard security headers:
-  * `X-Content-Type-Options: nosniff` (MIME sniffing prevention)
-  * `X-Frame-Options: SAMEORIGIN` (Clickjacking prevention)
-  * `Strict-Transport-Security` (Enforces HTTPS)
-  * `Cross-Origin-Resource-Policy: cross-origin` (Permits cross-origin resource loading between Netlify and Render)
-* **CORS Origin Whitelisting**:
-  * **Backend**: Express validates incoming `Origin` headers against configured environment domains (`ALLOWED_ORIGINS` / `CLIENT_URL`) with fallback to local development hosts.
-  * **Frontend**: Netlify configuration (`netlify.toml`) restricts `Access-Control-Allow-Origin` strictly to the production frontend domain (`https://precious-griffin-831939.netlify.app`).
-* **Request Sanitization & Payload Limits**: JSON body payloads are restricted to `100kb` via `express.json({ limit: '100kb' })`, which limits oversized request bodies and reduces memory-abuse risk.
-* **Centralized Error Handling**: Production error middleware catches synchronous and asynchronous exceptions, returning structured JSON error messages without exposing stack traces, internal paths, or database structures.
-* **Conditional DNS Resolver**: For local developer environments where regional ISP DNS servers fail MongoDB Atlas SRV lookups, `DNS_OVERRIDE=true` enables fallback to Google Public DNS (`8.8.8.8`, `8.8.4.4`). This override remains disabled in containerized production environments to preserve native cloud DNS discovery.
-
----
-
-## Test Engine & Server-Authoritative Scoring
-
-A foundational architecture principle of NexPrep is that **the client is never trusted with test evaluation or score determination**.
-
-```mermaid
-flowchart TD
-    subgraph TestDelivery ["1. Question Delivery - Sanitized"]
-        SelectTopic["Student selects Subject and Chapter"]
-        FetchQuestions["GET /api/tests/questions"]
-        SanitizeQuestions["testScoring.js: Strip answer keys from 10 questions"]
-        ReceiveQuestions["Browser receives sanitized questions and starts 120s timer"]
-    end
-
-    subgraph TestSubmission ["2. Server-Authoritative Scoring"]
-        SubmitAnswers["Student submits question IDs and chosen options"]
-        PostResult["POST /api/tests/result"]
-        ValidateSubmission["testScoring.js: Validate 10 questions, taxonomy, and bounds"]
-        GradeSubmission["testScoring.js: Grade server-side against authoritative key"]
-        SaveResult["MongoDB: Save TestResult record"]
-        ReturnScore["Return score and percentage to student"]
-    end
-
-    subgraph TestAnalytics ["3. Dashboard and Streak Calculation"]
-        LoadDashboard["GET /api/tests/dashboard"]
-        QueryHistory["MongoDB: Fetch all user test attempts"]
-        StreakCalc["streakService.js: Evaluate consecutive UTC calendar days"]
-        RenderInsights["Render analytics, subject averages, and streak count"]
-    end
-
-    SelectTopic --> FetchQuestions
-    FetchQuestions --> SanitizeQuestions
-    SanitizeQuestions --> ReceiveQuestions
-    ReceiveQuestions --> SubmitAnswers
-
-    SubmitAnswers --> PostResult
-    PostResult --> ValidateSubmission
-    ValidateSubmission --> GradeSubmission
-    GradeSubmission --> SaveResult
-    SaveResult --> ReturnScore
-
-    ReturnScore --> LoadDashboard
-    LoadDashboard --> QueryHistory
-    QueryHistory --> StreakCalc
-    StreakCalc --> RenderInsights
-```
-
-### Evaluation Protocol
-
-1. **Question Sanitization**: When questions are retrieved (`GET /api/tests/questions`), `testScoring.js` maps over the question bank and removes the `answer` property entirely. Clients receive only the question ID, question text, and option strings.
-2. **Submission Payload**: The student completes the 120-second test. The frontend posts an array of answer objects (`{ questionId, selectedOption }`).
-3. **Rigorous Server-Side Validation**:
-   - The submission array length must match the expected chapter question count (10).
-   - Every `questionId` must belong to the specified subject and chapter in the authoritative question bank.
-   - Duplicate question IDs in the submission are rejected with HTTP 400.
-   - Selected option indices must be valid integers in the `[0, 3]` range.
-4. **Authoritative Grading**: The server grades each submitted question against the in-memory authoritative answer key, deriving the score independently. Any client-provided score or total count parameters in the request body are ignored.
-5. **Persistence**: The authoritative result is committed to the `testresults` collection with a reference to the authenticated user.
-
----
-
-## Progress Tracking
-
-The progress system tracks student activity across the 12-chapter curriculum with idempotent database operations.
-
-```mermaid
-flowchart TD
-    subgraph UserActions ["Student Browser Actions"]
-        OpenChapter["Open chapter module"]
-        ToggleStatus["Toggle completion status"]
-        OpenDashboard["Visit home or dashboard"]
-    end
-
-    subgraph Endpoints ["Express REST Endpoints"]
-        UpdateRoute["POST /api/progress/update"]
-        CompleteRoute["POST /api/progress/complete"]
-        ContinueRoute["GET /api/progress/continue"]
-        StatsRoute["GET /api/progress/stats"]
-    end
-
-    subgraph BackendStorage ["Validation and Database Operations"]
-        CheckTaxonomy["validateSubjectAndChapter: Verify valid taxonomy"]
-        UpsertLastOpened["MongoDB: Atomic upsert updating lastOpenedAt"]
-        UpsertCompleted["MongoDB: Atomic upsert updating completed flag"]
-        QueryContinue["MongoDB: Find most recently opened chapter"]
-        QueryStats["MongoDB: Fetch completed chapters for subject totals"]
-    end
-
-    subgraph ClientViews ["Client UI Updates"]
-        ContinueCard["Render Continue Learning card on home page"]
-        ProgressBars["Render subject and overall completion percentages"]
-    end
-
-    OpenChapter --> UpdateRoute
-    ToggleStatus --> CompleteRoute
-    OpenDashboard --> ContinueRoute
-    OpenDashboard --> StatsRoute
-
-    UpdateRoute --> CheckTaxonomy
-    CompleteRoute --> CheckTaxonomy
-    CheckTaxonomy --> UpsertLastOpened
-    CheckTaxonomy --> UpsertCompleted
-
-    ContinueRoute --> QueryContinue
-    QueryContinue --> ContinueCard
-
-    StatsRoute --> QueryStats
-    QueryStats --> ProgressBars
-```
-
-### Telemetry Mechanics
-
-* **Atomic Upserts**: Progress updates utilize Mongoose `findOneAndUpdate` with `{ upsert: true }`, `$set`, and `$setOnInsert`. Combined with the compound unique index `{ user: 1, subject: 1, chapter: 1 }`, this ensures idempotent updates and avoids duplicate progress records.
-* **Continue Learning Resumption**: When a student opens a chapter, `lastOpenedAt` is stamped with the current timestamp. The `GET /api/progress/continue` endpoint sorts by `lastOpenedAt: -1` to immediately return the latest topic for the home page banner.
-* **Curriculum Completion Aggregation**: `GET /api/progress/stats` calculates completed chapters per subject against the canonical taxonomy chapter count, returning exact completion percentages for Physics, Chemistry, Mathematics, and Overall.
-
----
-
-## Analytics & Rule-Based Performance Insights
-
-The dashboard service (`GET /api/tests/dashboard`) processes student test history using an in-memory analytics engine:
-
-* **Overall Test Metrics**: Aggregates total tests completed and computes cumulative average score percentage.
-* **Subject-Wise Distribution**: Tallies the total test attempts across Physics, Chemistry, and Mathematics.
-* **Strengths & Weaknesses Identification**: Calculates percentage averages per subject. Identifies the highest-performing subject (`strongestSubject`) and lowest-performing subject (`weakestSubject`). When the weakest subject falls below a 60% average, the engine outputs a targeted study recommendation.
-* **7-Day Consistency Monitoring**: Filters test results from the preceding 7 calendar days:
-  * ≥ 2 tests: `"You are practicing consistently."`
-  * 1 test: `"You've practiced recently, keep it up!"`
-  * 0 tests: `"Your activity has decreased recently."`
-* **Performance Trajectory Trend**: Compares the average score of the 2 most recent tests against the 2 tests preceding them (requires ≥ 4 tests):
-  * Difference > +5%: `"Improving"`
-  * Difference < -5%: `"Needs Attention"`
-  * Difference within ± 5%: `"Stable"`
-* **Authoritative Consecutive Practice Streak (`streakService.js`)**:
-  * **Global Scope**: Evaluates all user test timestamps, independent of history pagination limits.
-  * **UTC Calendar Extraction**: Converts timestamps to UTC `YYYY-MM-DD` date strings, providing deterministic streak evaluation across clients regardless of local system timezones.
-  * **Day Deduplication**: Multiple tests completed on the same calendar day count as a single active practice day.
-  * **Active Day Grace Logic**: If the user practiced today (UTC), the streak includes today and consecutive preceding days. If the user has not practiced today yet but practiced yesterday (UTC), the streak remains active from yesterday. Missing both today and yesterday resets the streak to 0.
-  * **Gap Detection**: Any missing calendar day breaks the streak.
-
----
-
-## REST API Reference
-
-The backend provides 28 REST endpoints structured across Health, Authentication, Progress, Chapter Tests, and JEE Mock Tests / Proctoring.
-
-| Method | Endpoint | Description | Access / Auth |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/` | API status and root welcome probe | Public |
-| `GET` | `/api/health` | Service liveness and health check | Public |
-| `POST` | `/api/auth/register` | Register a new local user account | Public (Rate-Limited: 20 req / 15 min) |
-| `POST` | `/api/auth/login` | Authenticate local user with email and password | Public (Rate-Limited: 20 req / 15 min) |
-| `POST` | `/api/auth/google` | Authenticate with Firebase Google ID token | Public (Rate-Limited: 20 req / 15 min) |
-| `GET` | `/api/auth/me` | Retrieve authenticated user profile | Bearer JWT |
-| `POST` | `/api/progress/update` | Update last-opened timestamp for a chapter | Bearer JWT |
-| `POST` | `/api/progress/complete` | Mark a chapter as completed | Bearer JWT |
-| `POST` | `/api/progress/incomplete` | Mark a chapter as incomplete | Bearer JWT |
-| `GET` | `/api/progress/status` | Query completion status of a specific chapter | Bearer JWT (`?subject=...&chapter=...`) |
-| `GET` | `/api/progress/stats` | Retrieve subject-wise and overall progress percentages | Bearer JWT |
-| `GET` | `/api/progress/continue` | Retrieve most recently visited chapter for resumption | Bearer JWT |
-| `GET` | `/api/tests/questions` | Retrieve sanitized test questions (answers omitted) | Bearer JWT (`?subject=...&chapter=...`) |
-| `POST` | `/api/tests/result` | Submit test answers for authoritative server grading | Bearer JWT |
-| `GET` | `/api/tests/history` | Retrieve paginated test attempt history | Bearer JWT (`?page=1&limit=5`) |
-| `GET` | `/api/tests/dashboard` | Retrieve performance metrics, insights, and streak | Bearer JWT |
-| `GET` | `/api/mock-tests` | List available JEE Main mock tests & user's active session | Bearer JWT |
-| `GET` | `/api/mock-tests/:testIdOrSlug` | Retrieve sanitized mock test details and questions | Bearer JWT |
-| `POST` | `/api/mock-tests/:testIdOrSlug/start` | Start or resume a server-authoritative mock test session | Bearer JWT |
-| `POST` | `/api/mock-tests/:sessionId/answer` | Autosave answer selection / review status | Bearer JWT |
-| `POST` | `/api/mock-tests/:sessionId/submit` | Submit completed exam for authoritative scoring | Bearer JWT |
-| `GET` | `/api/mock-tests/:sessionId/result` | Retrieve evaluated score breakdown and question review | Bearer JWT |
-| `POST` | `/api/mock-tests/:sessionId/proctoring/start` | Initialize proctoring session for active exam attempt | Bearer JWT |
-| `POST` | `/api/mock-tests/:sessionId/proctoring/event` | Append immutable telemetry / observation event | Bearer JWT |
-| `POST` | `/api/mock-tests/:sessionId/proctoring/heartbeat` | Synchronize unified 30s session & proctoring heartbeat | Bearer JWT |
-| `POST` | `/api/mock-tests/:sessionId/proctoring/stop` | Terminate proctoring session on exam submission | Bearer JWT |
-| `GET` | `/api/mock-tests/:sessionId/proctoring/correlations` | Retrieve temporal correlation episodes & relationships | Bearer JWT |
-| `GET` | `/api/mock-tests/:sessionId/proctoring/report` | Retrieve evidence-grounded proctoring report & statistics | Bearer JWT |
-
----
-
-## Database Design
-
-Dynamic application data is stored in MongoDB Atlas across three schemas with explicit validation constraints and compound indexing:
+### Mock Test & Proctoring Lifecycle
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            MONGODB ATLAS SCHEMAS                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ 1. User (Collection: users)                                                 │
-│    - name: String (required, trimmed, max 100 chars)                        │
-│    - email: String (required, unique, lowercase, trimmed)                   │
-│    - password: String (required for local auth, bcrypt hash, min 6 chars)   │
-│    - firebaseUid: String (sparse unique index, for Google OAuth users)      │
-│    - authProvider: String (enum: ['local', 'google'], default: 'local')     │
-│    - createdAt: Date (default: Date.now)                                    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ 2. Progress (Collection: progresses)                                        │
-│    - user: ObjectId (ref: 'User', required)                                 │
-│    - subject: String (enum: TAXONOMY_SUBJECTS, required)                    │
-│    - chapter: String (enum: TAXONOMY_CHAPTERS, required)                    │
-│    - completed: Boolean (default: false)                                    │
-│    - lastOpenedAt: Date (default: Date.now)                                 │
-│    * Compound Unique Index: { user: 1, subject: 1, chapter: 1 }             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ 3. TestResult (Collection: testresults)                                     │
-│    - user: ObjectId (ref: 'User', required)                                 │
-│    - subject: String (enum: TAXONOMY_SUBJECTS, required)                    │
-│    - chapter: String (enum: TAXONOMY_CHAPTERS, required)                    │
-│    - score: Number (required, integer, min: 0)                              │
-│    - totalQuestions: Number (required, integer, min: 1)                     │
-│    - createdAt: Date (default: Date.now)                                    │
-│    * Compound Index: { user: 1, createdAt: -1 }                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+MOCK TEST CATALOG
+       ↓
+READINESS & PERMISSIONS (Camera, Screen Share, Fullscreen)
+       ↓
+TIMED EXAM SESSION (Authoritative Countdown & Real-Time Local Telemetry)
+       ↓
+SUBMISSION / TIMEOUT (Single-Flight Protection & Centralized Finalization)
+       ↓
+TEMPORAL CORRELATION (Bounded Episodes & Multi-Stream Pairwise Clustering)
+       ↓
+DETERMINISTIC PROCTORING ASSESSMENT (CLEAR / REVIEW_REQUIRED / INSUFFICIENT_DATA)
+       ↓
+SERVER-AUTHORITATIVE EVALUATION GATE
+       ├── [CLEAR] ───────────────→ EVALUATED: Server Computes +4/-1/0 Score → Results Released
+       │                                                                      ↓
+       │                                                      (Optional Proctoring Evidence Report)
+       │
+       └── [REVIEW_REQUIRED / ────→ HELD_FOR_REVIEW: Scoring Withheld → Neutral Technical Hold Notice
+            INSUFFICIENT_DATA]                       (Candidate Answers Preserved, Report Access Gated)
 ```
-
-### Indexing Rationale
-
-* **`Progress` Unique Compound Index (`{ user: 1, subject: 1, chapter: 1 }`)**: Enforces that each user has at most one progress document per chapter, supporting idempotent upserts without duplicate records.
-* **`TestResult` Compound Index (`{ user: 1, createdAt: -1 }`)**: Compound indexes support efficient user-scoped lookups and date-ordered pagination for test history and dashboard queries without requiring in-memory sorting.
 
 ---
 
-## Automated Testing & CI
+## Tech Stack
 
-The backend is verified through an automated test suite implemented natively using Node.js's built-in test runner (`node:test`, `node:assert`). It operates with zero external testing dependencies.
+| Layer | Technologies | Role / Justification |
+| :--- | :--- | :--- |
+| **Frontend** | HTML5, CSS3, ES6 JavaScript | Frameworkless static multi-page architecture deployed on CDN; minimal client-side build requirements. |
+| **Backend** | Node.js (20.x/22.x), Express 4 | REST API gateway handling session management, scoring, and telemetry orchestration. |
+| **Database** | MongoDB Atlas, Mongoose 9 | Document store with compound unique indexes for progress, date indexes for test history, and session links. |
+| **Authentication** | JWT (`jsonwebtoken`), `bcryptjs`, Firebase Admin | Local password authentication and server-side Google OAuth verification. |
+| **Client Vision & Media** | `@mediapipe/tasks-vision`, `getUserMedia`, `getDisplayMedia` | On-device browser computer vision and display surface monitoring with pure local analysis. |
+| **Testing** | Node.js Test Runner (`node:test`, `node:assert/strict`) | Uses Node.js's built-in `node:test` and `node:assert/strict` APIs rather than an external test framework. |
+| **CI / Hosting** | GitHub Actions, Netlify, Render | Automated building and testing on every PR; decoupled static frontend and Node API deployments. |
 
-* **166 automated tests across 14 test suites, all currently passing**
-* **GitHub Actions CI** runs on every push and pull request targeting `main`
+---
+
+## Core Engineering Design
+
+### 1. Server-Authoritative Evaluation & Tamper Resistance
+All answer validation and scoring occur exclusively on the backend:
+* **Question Sanitization**: The questions API strips all correct answer keys before payload transmission.
+* **Isolated Score Computation**: Scores (+4 / -1 / 0) are derived by server services comparing submitted question IDs and selected option indices against server-stored questions.
+* **Client Scores Not Trusted**: Client requests attempting to supply scores, percentages, or evaluation statuses are ignored; evaluation states are strictly assigned by server controllers.
+
+### 2. Deterministic Proctoring Assessment
+The proctoring subsystem evaluates observable technical facts rather than attempting subjective inferences:
+* **No Probabilistic Cheating Classification**: The system does not output opaque cheating risk scores, calculate probabilities, or infer candidate intent; it evaluates observable telemetry against deterministic rules.
+* **Observable Rules**: It checks for explicit conditions—such as repeated browser attention shifts, sustained face absence, multiple faces, head pose deviations, or screen view changes—and correlates them temporally ($\le 3000$ms window).
+* **Tri-State Technical Outcomes**:
+  - `CLEAR`: No configured deterministic review condition was detected.
+  - `REVIEW_REQUIRED`: Configured deterministic review conditions were met based on observed telemetry and correlated evidence.
+  - `INSUFFICIENT_DATA`: Insufficient monitoring data to make the configured assessment, such as a missing proctoring session, unavailable monitoring stream, or insufficient stream coverage.
+
+### 3. Server-Authoritative Evaluation Gate
+The evaluation gate connects proctoring assessment directly to academic result release:
+* **Centralized Finalization**: Both candidate submissions and session timer expirations pass through the centralized finalization path in `mockTestController.js`.
+* **Score Release**: When an assessment is `CLEAR`, the session transitions to `EVALUATED`, academic scoring is authorized, and marks are computed.
+* **Review Holds**: If an assessment indicates `REVIEW_REQUIRED` or `INSUFFICIENT_DATA`, the session transitions to `HELD_FOR_REVIEW`. Academic scoring and result release are withheld pending review, candidate answers remain preserved, and the candidate receives a neutral technical hold notice.
+* **Report Access Boundaries**: Proctoring Evidence Reports are restricted (HTTP 403 Forbidden) for held attempts, preventing candidates with held attempts from accessing internal proctoring evidence.
+
+### 4. Privacy-Conscious On-Device Telemetry
+Candidate privacy is protected by performing media analysis directly in the browser:
+* **Local In-Memory Processing**: Webcam and screen observations are processed locally in browser memory and are not uploaded or persisted as raw media.
+* **Webcam Computer Vision**: The MediaPipe FaceLandmarker model executes client-side via WebAssembly.
+* **Screen Monitoring**: Screen capture is downscaled to an in-memory 64×48 canvas. Only an 8-dimensional structural signature (coarse regional luminance averages and RGB color balances) is compared against baseline.
+* **Telemetry-Only Transmission**: No webcam video, screen recordings, canvas snapshots, or image blobs are transmitted over the network or saved to database storage.
+
+### 5. Canonical Curriculum Taxonomy
+* **Single Source of Truth**: The curriculum taxonomy in `backend/data/taxonomy.js` defines all valid subjects and chapters.
+* **Build-Time Compilation**: A build script (`scripts/buildTaxonomy.js`) derives the client-side JavaScript contract (`frontend/scripts/chapterNames.js`).
+* **Runtime Validation**: Backend schemas and controllers reject any unrecognized or mismatched subject/chapter combinations.
+
+### 6. Persistence & Indexing
+* **Progress Constraints**: A compound unique index on `Progress` (`{ user: 1, subject: 1, chapter: 1 }`) supports idempotent atomic upserts while enforcing one progress record per user/subject/chapter.
+* **Query Optimization**: Compound indexing on `TestResult` (`{ user: 1, createdAt: -1 }`) and `MockTestSession` (`{ user: 1, mockTest: 1, status: 1 }`, `{ user: 1, createdAt: -1 }`) supports efficient paginated history lookups and active session queries.
+* **Session & Assessment Uniqueness**: Unique indexes on `ProctoringSession` (`{ mockTestSession: 1 }`) and `ProctoringAssessment` (`{ mockTestSession: 1 }`) enforce strict 1:1 relationships with the parent exam session.
+* **Heartbeat In-Place Updates**: 30-second candidate heartbeats update an existing session timestamp (`lastHeartbeatAt`) in place without appending rows to the database event log.
+
+---
+
+## REST API Overview
+
+The backend exposes 30 REST endpoints organized across six functional domains:
+
+| Domain | Representative Endpoints | Description & Key Responsibilities |
+| :--- | :--- | :--- |
+| **Health** | `GET /api/health` | Service liveness probe and database connection status check. |
+| **Authentication** | `POST /api/auth/register`<br>`POST /api/auth/login`<br>`POST /api/auth/google`<br>`GET /api/auth/me` | User registration, local bcrypt password login, Firebase Google OAuth ID token verification (all rate-limited), and authenticated profile retrieval. |
+| **Progress & Curriculum** | `POST /api/progress/update`<br>`POST /api/progress/complete`<br>`GET /api/progress/stats`<br>`GET /api/progress/continue` | Chapter reading telemetry, completion toggle, subject-wise progress aggregation, and continue-learning resumption lookup. |
+| **Chapter Practice Tests** | `GET /api/tests/questions`<br>`POST /api/tests/result`<br>`GET /api/tests/history`<br>`GET /api/tests/dashboard` | Sanitized practice questions (answers excluded), server-authoritative grading, paginated attempt history, and analytics dashboard with active streak. |
+| **JEE Mock Tests** | `GET /api/mock-tests`<br>`POST /api/mock-tests/:id/start`<br>`POST /api/mock-tests/:sessionId/answer`<br>`POST /api/mock-tests/:sessionId/submit`<br>`GET /api/mock-tests/:sessionId/result` | Mock exam catalog, session initialization with server timer, answer selection autosave, submission finalization, and result retrieval (`EVALUATED` marks or `HELD_FOR_REVIEW` notice). |
+| **Proctoring Telemetry** | `POST /api/mock-tests/:sessionId/proctoring/start`<br>`POST /api/mock-tests/:sessionId/proctoring/event`<br>`POST /api/mock-tests/:sessionId/proctoring/heartbeat`<br>`GET /api/mock-tests/:sessionId/proctoring/report` | Proctoring session lifecycle, immutable event ingestion, 30s session keep-alive synchronization, and Proctoring Evidence Report (access-restricted for held attempts). |
+
+---
+
+## Data Model
+
+```text
+User (Persisted root entity)
+ ├── Progress (Persisted; compound unique index on { user, subject, chapter })
+ ├── TestResult (Persisted; compound index on { user, createdAt: -1 })
+ └── MockTestSession (Persisted; compound indexes on { user, mockTest, status } and { user, createdAt: -1 })
+      ├── Answers (Embedded subdocument array [{ questionId, section, selectedOption, isMarkedForReview, answeredAt }])
+      ├── ProctoringSession (Persisted 1:1 ref; unique index on { mockTestSession })
+      │    ├── ProctoringEvent (Persisted append-only stream; compound index on { proctoringSession, timestamp })
+      │    └── ProctoringEpisode (Persisted derived clusters; compound index on { proctoringSession, startedAt })
+      └── ProctoringAssessment (Persisted 1:1 ref; unique index on { mockTestSession })
+           └── TriggeredRules (Embedded subdocument array [{ ruleId, ruleName, category, durationMs, evidenceEventIds, episodeIds }])
+```
+
+---
+
+## Testing & Quality Assurance
+
+The backend is verified through an automated test suite implemented using Node.js's built-in `node:test` and `node:assert/strict` APIs rather than an external test framework.
 
 ```bash
 # Run the complete test suite locally
@@ -395,260 +202,22 @@ cd backend
 npm test
 ```
 
-### Test Suite Breakdown
+### Verification Summary
+* **301 automated tests across 31 test suites in 19 test files**, all passing.
+* **Continuous Integration**: GitHub Actions workflow automatically builds the taxonomy contract and runs `npm test` on every push and pull request targeting `main`.
+* **Test Scope**: Automated tests cover the major behavioral guarantees across authentication, LMS flows, mock-test lifecycle, proctoring, evaluation gating, authorization, and failure handling.
 
-```text
-▶ Authentication & JWT Protection Suite (8 tests) ...................... ✔ PASS
-  - Email normalization (whitespace trimming and lowercasing)
-  - Mixed-case registration and login resolution
-  - Password mismatch rejection with HTTP 401
-  - Missing token rejection with HTTP 401
-  - Malformed JWT rejection with HTTP 401
-  - Expired JWT rejection with HTTP 401
-  - Valid JWT verification and user document attachment
-  - Live database deletion check for valid tokens
+### Major Areas Verified
+* **Authentication & Middleware**: JWT verification, email normalization, password hashing, and error handling.
+* **Database Constraints & Query Behavior**: Compound-index verification, pagination clamping, lean queries, and user isolation.
+* **Scoring & Question Sanitization**: Complete answer key exclusion in API payloads, negative marking (+4 / -1 / 0), and tampering resistance.
+* **State Machine Hysteresis**: Pure DOM-independent observation state machines for webcam face detection and screen structural signature comparison, verifying transient noise suppression and clean teardown.
+* **Temporal Correlation**: Bounded clustering ($\le 3000$ms window, 30s max cluster duration), pairwise relationships, deterministic timestamp tie-breaking, and answer interaction linkage.
+* **Deterministic Assessment & Evaluation Gate**: Rules R1 through R7, derivation of `CLEAR`, `REVIEW_REQUIRED`, and `INSUFFICIENT_DATA`, score release for sessions reaching `EVALUATED`, and score withholding for held sessions.
+* **Invariants & Security Boundaries**: Centralized finalization idempotency, access authorization (HTTP 403 on another user's session), and proctoring evidence report access boundaries.
 
-▶ Production Error Handling & Middleware Suite (5 tests) ............... ✔ PASS
-  - notFound middleware structured 404 JSON response
-  - CORS policy violation handling with HTTP 403
-  - Malformed JSON SyntaxError handling with HTTP 400
-  - Custom status code preservation without leaking stack traces
-  - Fallback to HTTP 500 when status code is undefined or 200
-
-▶ Query Efficiency, Indexing & Pagination Suite (5 tests) ............... ✔ PASS
-  - Schema declaration verification for compound index { user: 1, createdAt: -1 }
-  - Test history pagination and boundary clamping (page, limit)
-  - Clean handling of empty history records
-  - Dashboard analytics computation using lean queries
-  - Multi-user isolation enforcing strict req.user.id scoping
-
-▶ Server-Authoritative Test Scoring & Question Sanitization (12 tests) . ✔ PASS
-  - Question sanitization ensuring zero answer keys sent to client
-  - Perfect score derivation (10/10)
-  - Zero score derivation (0/10)
-  - Mixed correct and incorrect answer evaluation
-  - Invalid question ID rejection with HTTP 400
-  - Duplicate question ID rejection with HTTP 400
-  - Out-of-bounds option index rejection with HTTP 400
-  - Incomplete question submission rejection with HTTP 400
-  - Malformed submission structure rejection with HTTP 400
-  - Tampering immunity: client-supplied scores/totals are ignored
-  - Sanitized questions endpoint contract verification
-  - Complete submission grading verification across all 12 chapters
-
-▶ Security, Helmet & Rate Limiting Suite (4 tests) ..................... ✔ PASS
-  - authLimiter permits requests within 20 req / 15 min quota
-  - authLimiter rejects excess requests with HTTP 429
-  - DNS server override strictly conditioned on DNS_OVERRIDE === 'true'
-  - Helmet attaches standard security headers (nosniff, SAMEORIGIN, HSTS)
-
-▶ Targeted Streak Calculation Suite (9 tests) .......................... ✔ PASS
-  - Returns 0 for empty, null, or undefined results array
-  - Safely ignores invalid dates and malformed objects without throwing
-  - Returns streak of 1 when a test was completed today (UTC)
-  - Deduplicates multiple tests on the same calendar day into one practice day
-  - Counts consecutive days correctly across multiple attempts per day
-  - Preserves active streak if practiced yesterday but not yet today
-  - Breaks streak on calendar date gaps
-  - Strictly timezone-independent UTC date evaluation
-  - Computes streak across all user tests exceeding pagination limits
-
-▶ Canonical Single-Source Taxonomy Suite (6 tests) ..................... ✔ PASS
-  - Canonical taxonomy contains all 3 subjects with exact 4 chapters each
-  - Derived taxonomy structures map subjects and chapters accurately
-  - Helper functions return correct display titles and parent subjects
-  - Question bank contains authoritative entries for 100% of taxonomy chapters
-  - validateSubjectAndChapter enforces single-source-of-truth rules
-  - buildTaxonomy script generates valid frontend JavaScript contracts
-
-▶ Taxonomy & Input Validation Suite (12 tests) ......................... ✔ PASS
-  - Accepts all valid subject and chapter combinations
-  - Rejects unknown subjects with HTTP 400
-  - Rejects unknown chapters with HTTP 400
-  - Rejects mismatched subject/chapter pairings with HTTP 400
-  - Strictly rejects XSS payloads in subject/chapter fields with HTTP 400
-  - TestResult model rejects negative scores
-  - TestResult model rejects scores exceeding totalQuestions
-  - TestResult model rejects non-integer scores and totalQuestions
-  - TestResult model rejects subjects/chapters outside taxonomy enum
-  - Progress model rejects subjects/chapters outside taxonomy enum
-  - updateProgress controller rejects unknown subject/chapter with HTTP 400
-  - getChapterStatus controller rejects invalid query parameters with HTTP 400
-
-▶ JEE Mock Test Scoring, Sessions & Lifecycle (15 tests) ................ ✔ PASS
-  - MockTest schema constraints and negative marking validation (+4 / -1 / 0)
-  - MockTestSession server-authoritative timer and expiry logic
-  - Multi-section questions serving with sanitized answer keys
-  - Auto-save answers and marked-for-review state persistence
-  - Refresh and resume attempt restoration
-  - Authoritative evaluation with positive/negative score calculation
-
-▶ Foundational Proctoring & Browser Telemetry (19 tests) ............... ✔ PASS
-  - ProctoringSession and ProctoringEvent immutable schemas
-  - Client readiness flow verification (camera, mic, screen, fullscreen)
-  - Debounced browser visibility change and window focus loss/regain telemetry
-  - Fullscreen exit event tracking with authoritative server timestamp
-  - Hardware track onended event monitoring (camera/microphone/screen stopped)
-  - Non-duplication of heartbeats in event log (lastHeartbeatAt tracking)
-
-▶ Webcam Computer Vision State Machine (8 tests) ....................... ✔ PASS
-  - Pure DOM-independent observation state machine hysteresis
-  - FACE_PRESENT stabilization (300ms confirmation window)
-  - FACE_ABSENT transient suppression (1000ms confirmation threshold)
-  - MULTIPLE_FACES multi-person detection (500ms confirmation threshold)
-  - HEAD_POSE_DEVIATION yaw/pitch angle tracking (1000ms confirmation)
-  - Flush open episodes with final durations on analyzer stop
-
-▶ Screen Observation State Machine (6 tests) ........................... ✔ PASS
-  - In-memory canvas sampling with multi-region perceptual hashing
-  - SCREEN_VIEW_STABLE state generation for expected exam view
-  - Transient visual deviation filtering (< 1500ms hysteresis)
-  - SCREEN_VIEW_CHANGED episode emission with exact duration tracking
-  - SCREEN_VIEW_UNAVAILABLE handling upon screen share stream end
-  - Flush active deviation episodes cleanly upon pipeline stop
-
-▶ Event Correlation & Temporal Analysis (25 tests) ..................... ✔ PASS
-  - Deterministic event categorization across media, browser, CV, and screen
-  - Bounded temporal clustering (3000ms window, 60000ms max duration)
-  - Multi-stream pairwise relationship detection (Rules A through G)
-  - Server-authoritative answer interaction context linkage (answerInteractionContext)
-  - Idempotent correlation synchronization and cross-session isolation
-
-▶ Evidence-Grounded Proctoring Report & Reasoning (32 tests) ........... ✔ PASS
-  - Extraction of OBSERVED and DERIVED evidence with unique evidenceIds
-  - Bidirectional traceability from statements to episodes to raw event IDs
-  - Cumulative interruption counts tracking (camera, screen, fullscreen)
-  - Explicit system limitations and unknowns grounding
-  - Zero cheating score, suspicion score, or intent speculation safety verification
-  - Academic score and grading isolation verification
-  - Session owner access control (401 unauthenticated, 403 unauthorized)
-
-▶ Proctoring Evaluation & Hardening (Phase 7) (43 tests) ................ ✔ PASS
-  - Rules A through G temporal correlation matrix positive and boundary negative tests (delta 3000ms vs 3001ms)
-  - Raw telemetry append-only preservation without duplicate analytical relationships
-  - Deterministic timestamp tie-breaking via event ID sorting
-  - Cluster boundary enforcement (10s, 29s, 30s, >30s cluster split at maxClusterDurationMs = 30000ms)
-  - Full evidence graph traceability (timeline/relationship/technical obs -> evidenceId -> raw eventId)
-  - Cross-session data isolation & zero leakage verification
-  - Structural and semantic report safety (zero cheating/suspicion scores, zero intent speculation)
-  - Webcam CV state machine hysteresis, rapid jitter noise suppression, and clean stop teardown
-  - Screen state machine hysteresis, capture loss handling, and zero-luminance baseline rejection
-  - Event volume & bounded resource behavior (1,000 heartbeats -> 0 episodes, 50 repeated focus events)
-  - High-throughput synthetic benchmark: 1,000 events correlated & report synthesized in < 10ms
-  - False observation suppression: transient states strictly yield zero false events
-  - Academic scoring regression verification: proctoring telemetry has zero impact on +4/-1/0 evaluation
-```
-
----
-
-## Proctoring Evaluation, Hardening & Final Integration (Phases 7–8)
-
-The proctoring subsystem is final integrated and hardened for the evaluated scope. The end-to-end architecture connects the full candidate journey across 8 discrete stages:
-
-```text
-MOCK TEST CATALOG
-       ↓
-EXAM INSTRUCTIONS
-       ↓
-READINESS & PERMISSIONS (Local Camera & Screen Verification)
-       ↓
-TIMED EXAM SESSION (Authoritative Countdown & Real-Time Local Telemetry)
-       ↓
-SUBMISSION / TIMEOUT (Single-Flight Protection & Expiry Invariant)
-       ↓
-ACADEMIC EVALUATION (Strict +4 / -1 / 0 Scoring Isolated on Server)
-       ↓
-PROCTORING TELEMETRY REPORT (Idempotent Temporal Correlation & Limitations)
-       ↓
-BIDIRECTIONAL EVIDENCE DRILL-DOWN (Traceability from Report to Raw Events)
-```
-
-### 1. End-to-End Verification Matrix (20 Scenarios: 18 Automated, 2 Manual-Only)
-
-| ID | Scenario | Scope | Expected Behavior | Verification Status |
-| :---: | :--- | :--- | :--- | :--- |
-| **A** | Normal Exam Lifecycle | Automated | Exam start → answers saved → submission → server grading (+4/-1/0) → proctoring report contains expected telemetry with no derived relationships for clean synthetic scenario. | **Passed** (`mock_test.test.js`, `proctoring_report.test.js`) |
-| **B** | Exam Timeout | Automated | Authoritative timer expiry rejects late answers → marks session expired → scores saved answers. | **Passed** (`mock_test.test.js`) |
-| **C** | Refresh / Resume | Automated | Browser refresh during active exam resumes attempt with preserved answers and authoritative timer. | **Passed** (`mock_test.test.js`, `proctoring.test.js`) |
-| **D** | Native Camera Permission Denied | **Manual-Only** | Browser-native `getUserMedia` denial triggers rejection → `cameraState = 'denied'` → non-blocking notice. | **Manual Validation Required** (Browser-native dialog) |
-| **E** | Native Screen-Share Canceled | **Manual-Only** | Browser display picker cancel triggers abort → `screenShareState = 'inactive'` → exam proceeds. | **Manual Validation Required** (Browser-native picker) |
-| **F** | Camera Track Stopped | Automated | Simulated `MediaStreamTrack.ended` triggers `CAMERA_STOPPED` → cameraState = 'inactive' → Rule G correlates with face absence. | **Passed** (`proctoring.test.js`, `temporal_correlation.test.js`) |
-| **G** | Screen-Share Stopped | Automated | Simulated `MediaStreamTrack.ended` on display track triggers `SCREEN_SHARE_STOPPED` → screen monitor emits `SCREEN_VIEW_UNAVAILABLE` → Rule F correlates. | **Passed** (`proctoring.test.js`, `screen_observation.test.js`) |
-| **H** | Fullscreen Exited | Automated | Fullscreen exit emits `FULLSCREEN_EXITED` → `fullscreenState = 'inactive'` → Rule C/D correlates. | **Passed** (`proctoring.test.js`, `temporal_correlation.test.js`) |
-| **I** | Browser Focus Lost | Automated | Window blur emits `FOCUS_LOST` → focus regain emits `FOCUS_REGAINED` with elapsed duration → Rule A correlates. | **Passed** (`proctoring.test.js`, `temporal_correlation.test.js`) |
-| **J** | Browser Visibility Changed | Automated | Document visibility hidden emits `PAGE_HIDDEN` → visible emits `PAGE_VISIBLE` → Rule A/B correlates. | **Passed** (`proctoring.test.js`, `temporal_correlation.test.js`) |
-| **K** | Face Absent | Automated | Webcam CV observes 0 faces → hysteresis filters $< 1000$ms → sustained absence emits `FACE_ABSENT` with duration. | **Passed** (`cv_observation.test.js`, `proctoring_evaluation.test.js`) |
-| **L** | Multiple Faces | Automated | Webcam CV detects $> 1$ face → hysteresis filters $< 750$ms → sustained detection emits `MULTIPLE_FACES`. | **Passed** (`cv_observation.test.js`, `proctoring_evaluation.test.js`) |
-| **M** | Head Pose Deviation | Automated | Webcam CV detects yaw/pitch deviation → $< 1000$ms filtered → sustained deviation emits `HEAD_POSE_DEVIATION`. | **Passed** (`cv_observation.test.js`, `proctoring_evaluation.test.js`) |
-| **N** | Screen View Changed | Automated | In-memory canvas similarity $< 0.75$ → $< 1500$ms filtered → sustained deviation emits `SCREEN_VIEW_CHANGED`. | **Passed** (`screen_observation.test.js`, `proctoring_evaluation.test.js`) |
-| **O** | Simultaneous Telemetry Events | Automated | Coincident events within $\le 3000$ms cluster into bounded episode with relationships; tied timestamps sorted by ID. | **Passed** (`proctoring_evaluation.test.js`) |
-| **P** | Heartbeat-Heavy Session | Automated | 1,000 heartbeats maintain session liveness without adding DB event rows and produce 0 episodes / relationships. | **Passed** (`proctoring_evaluation.test.js`) |
-| **Q** | Duplicate Submission | Automated | Server rejects duplicate submit with HTTP 400. `stopProctoring` is idempotent. Single-flight UI guard prevents race conditions. | **Passed** (`mock_test.test.js`, `proctoring.test.js`) |
-| **R** | Expired Session Modification | Automated | Expired sessions evaluate saved answers on result lookup while strictly rejecting new answer submissions with HTTP 400. | **Passed** (`mock_test.test.js`) |
-| **S** | Unauthorized Report Access | Automated | Candidate A cannot access Candidate B's session or report (HTTP 403 Forbidden). Unauthenticated access returns HTTP 401. | **Passed** (`proctoring_report.test.js`) |
-| **T** | Academic Scoring Isolation | Automated | Academic marks computed exclusively via +4/-1/0 formula from questions bank; proctoring telemetry has zero impact. | **Passed** (`proctoring_report.test.js`, `proctoring_evaluation.test.js`) |
-
-### 2. Manual Evaluation Requirements (`NOT_MEASURED_AUTOMATICALLY`)
-
-Certain real-world physical and browser-hardware constraints cannot be deterministically evaluated in automated headless Node.js tests and require manual browser validation:
-* **Physical Camera Hardware & Lighting**: Face Landmarker accuracy under severe backlighting, low-light underexposure, or extreme webcam viewing angles.
-* **Browser-Native Permission Dialogs**: User interaction timing and OS-level permission revocation for `getUserMedia()` and `getDisplayMedia()`.
-* **Hardware Video Acceleration & Resource Utilization**: Physical-device evaluation is required to measure sustained webcam/screen-processing frame rate, CPU/GPU utilization, thermal behavior, and long-session stability on representative hardware.
-* **Display Capture Surface Selection**: OS-dependent differences between capturing an Entire Screen, an Application Window, or a Browser Tab.
-
----
-
-## Engineering Decisions & Trade-offs
-
-### 1. Server-Authoritative Scoring vs. Client-Side Evaluation
-* **Decision**: All question verification, answer checking, and score calculations are performed strictly on the server. Clients receive sanitized questions containing no answer properties.
-* **Trade-off**: Increases network round-trip overhead on test submission as answers are sent over HTTP. In exchange, client-side answer-key inspection (e.g., via browser DevTools or Network tabs) and client-side score fabrication are prevented.
-
-### 2. Code-Versioned Canonical Curriculum vs. Database CMS Storage
-* **Decision**: The 12 core chapters and 120 curated questions are version-controlled directly in code (`taxonomy.js`, `questionBank.js`) and compiled to frontend contracts via `scripts/buildTaxonomy.js`.
-* **Trade-off**: Adding or updating questions requires a Git commit and deployment rather than an administrative CMS interface. In exchange, question lookups execute in-memory with zero database query latency during test sessions, and valid subjects and chapters are enforced across the build-time frontend contract and runtime backend validation.
-
-### 3. Vanilla JavaScript & Multi-Page Architecture vs. Heavy SPA Framework
-* **Decision**: The frontend is built using standard HTML5, modern CSS3, and ES6 JavaScript modules with no frontend framework (e.g., React, Vue).
-* **Trade-off**: Managing DOM state across separate pages requires explicit event binding and shared script modules. In exchange, the application has zero bundle-compilation overhead, ultra-fast initial page loads, zero runtime framework dependencies, and runs cleanly on static hosting.
-
-### 4. Compound Indexing & Lean Projections vs. Ad-Hoc Queries
-* **Decision**: Compound indexes were established on `testresults` (`{ user: 1, createdAt: -1 }`) and `progresses` (`{ user: 1, subject: 1, chapter: 1 }`), with queries leveraging Mongoose `.lean()`.
-* **Trade-off**: Introduces minor write overhead during index maintenance on inserts. In exchange, compound indexes support efficient user-scoped lookups and date-ordered pagination without full collection scans, while `.lean()` reduces Node.js memory overhead by returning plain JavaScript objects instead of hydrated Mongoose documents.
-
-### 5. UTC Calendar Day Streak vs. Rolling 24-Hour Window
-* **Decision**: Practice streaks evaluate calendar days in UTC (`YYYY-MM-DD`), deduplicating multiple tests per day and preserving an active streak if practiced yesterday.
-* **Trade-off**: UTC calendar boundaries do not adjust to local student timezones. However, UTC calendar boundaries provide deterministic streak evaluation across clients, avoid edge cases around daylight saving time shifts, and ensure consistent, predictable streak calculations across distributed environments.
-
----
-
-## Deployment Configuration
-
-The application is deployed across decoupled hosting platforms:
-
-```text
-Student Browser
-      │
-      ├──> [Netlify CDN] ─── Static HTML, CSS, Scripts (Cache-Control: immutable)
-      │
-      └──> [Render API] ──── Express Gateway & Controllers
-                 │
-                 ├──> [MongoDB Atlas] ──── Persistent Records (Users, Progress, Tests)
-                 └──> [Firebase Admin] ─── Cryptographic Google ID Token Verification
-```
-
-### Frontend (Netlify)
-* **Configuration**: `netlify.toml` in repository root.
-* **Publish Directory**: `frontend`
-* **Security Headers**: Injects `X-Content-Type-Options: nosniff`, `X-XSS-Protection: 1; mode=block`.
-* **CORS Header**: Restricts `Access-Control-Allow-Origin` to `https://precious-griffin-831939.netlify.app`.
-* **Asset Caching**: Static assets under `/styles/*` and `/scripts/*` are configured with `Cache-Control: public, max-age=31536000, immutable`.
-
-### Backend (Render)
-* **Runtime**: Node.js 20+ Web Service
-* **Build Command**: `npm ci && npm run build:taxonomy`
-* **Start Command**: `node server.js`
-* **Health Check Endpoint**: `/api/health`
+### Validation Boundaries
+Browser-native user permission dialogs (`getUserMedia`, `getDisplayMedia`) and physical camera lighting/hardware performance are real-world client-side boundaries evaluated manually on physical target devices.
 
 ---
 
@@ -657,125 +226,50 @@ Student Browser
 ```text
 NexPrep-LMS/
 ├── .github/
-│   └── workflows/
-│       └── ci.yml                 # GitHub Actions CI workflow (Node 20, build & test)
+│   └── workflows/ci.yml       # GitHub Actions CI workflow (Node 20.x, build & test)
 ├── backend/
-│   ├── config/
-│   │   ├── db.js                  # Mongoose connection with pooling
-│   │   └── firebaseAdmin.js       # Firebase Admin SDK initialization
-│   ├── controllers/
-│   │   ├── authController.js      # Register, login, googleLogin, getMe
-│   │   ├── healthController.js    # Health check & root probe handlers
-│   │   ├── mockTestController.js  # JEE mock test session lifecycle & scoring
-│   │   ├── proctoringController.js # Proctoring session lifecycle & telemetry
-│   │   ├── progressController.js  # Progress updates, stats & continue learning
-│   │   └── testController.js      # Questions, grading, history & dashboard
-│   ├── data/
-│   │   ├── questionBank.js        # 120 curated questions & authoritative keys
-│   │   └── taxonomy.js            # Canonical 3-subject, 12-chapter taxonomy
-│   ├── middleware/
-│   │   ├── authMiddleware.js      # JWT verification & live user lookup
-│   │   ├── errorMiddleware.js     # Centralized 404 & error handlers
-│   │   └── rateLimitMiddleware.js # express-rate-limit configuration
-│   ├── models/
-│   │   ├── MockTest.js            # JEE mock test schema & answer key store
-│   │   ├── MockTestSession.js     # Active attempt session state & timer
-│   │   ├── ProctoringEpisode.js   # Derived temporal correlation episode schema
-│   │   ├── ProctoringEvent.js     # Append-only proctoring telemetry schema
-│   │   ├── ProctoringSession.js   # Proctoring session lifecycle & status
-│   │   ├── Progress.js            # Progress schema with compound unique index
-│   │   ├── TestResult.js          # TestResult schema with compound date index
-│   │   └── User.js                # User schema with bcrypt & email normalization
-│   ├── routes/
-│   │   ├── authRoutes.js          # /api/auth endpoints
-│   │   ├── healthRoutes.js        # / and /api/health endpoints
-│   │   ├── mockTestRoutes.js      # /api/mock-tests endpoints
-│   │   ├── progressRoutes.js      # /api/progress endpoints
-│   │   └── testRoutes.js          # /api/tests endpoints
-│   ├── scripts/
-│   │   └── buildTaxonomy.js       # Build script compiling backend taxonomy to frontend
-│   ├── services/
-│   │   ├── proctoringReportService.js # Deterministic evidence-grounded report engine
-│   │   ├── streakService.js       # Authoritative UTC streak calculation
-│   │   ├── temporalCorrelationService.js # Deterministic episode correlation engine
-│   │   └── testScoring.js         # Question sanitization & test evaluation
-│   ├── tests/
-│   │   ├── auth.test.js           # Authentication & JWT protection tests (8 tests)
-│   │   ├── cv_observation.test.js # Webcam CV observation state machine tests (8 tests)
-│   │   ├── errorHandling.test.js  # Error handling & middleware tests (5 tests)
-│   │   ├── indexingPagination.test.js # Indexing & pagination tests (5 tests)
-│   │   ├── mockTest.test.js       # JEE mock test scoring & lifecycle tests (15 tests)
-│   │   ├── proctoring.test.js     # Foundational proctoring & telemetry tests (19 tests)
-│   │   ├── proctoring_evaluation.test.js # Phase 7 proctoring evaluation & hardening suite (43 tests)
-│   │   ├── proctoring_report.test.js # Evidence-grounded report & reasoning tests (32 tests)
-│   │   ├── scoring.test.js        # Server-authoritative scoring tests (12 tests)
-│   │   ├── screen_observation.test.js # Screen monitoring state machine tests (6 tests)
-│   │   ├── security.test.js       # Helmet, rate limiting & DNS tests (4 tests)
-│   │   ├── streak.test.js         # Practice streak calculation tests (9 tests)
-│   │   ├── taxonomy.test.js       # Canonical taxonomy tests (6 tests)
-│   │   ├── temporal_correlation.test.js # Event correlation & episode tests (25 tests)
-│   │   └── validation.test.js     # Taxonomy & input validation tests (12 tests)
-│   ├── .env.example               # Template for environment variables
-│   ├── package.json               # Backend dependencies & npm scripts
-│   └── server.js                  # Express app entry point & server bootstrap
+│   ├── config/                # MongoDB pooling (db.js) and Firebase Admin SDK setup
+│   ├── controllers/           # API request controllers (auth, progress, tests, mock tests, proctoring)
+│   ├── data/                  # Question bank (120 questions), taxonomy, and representative mock test data
+│   ├── middleware/            # JWT auth, centralized error pipeline, and express-rate-limit
+│   ├── models/                # Mongoose schemas (User, Progress, TestResult, MockTest, Sessions, Events, Episodes, Assessment)
+│   ├── routes/                # Express route declarations (auth, health, progress, tests, mock tests)
+│   ├── scripts/               # buildTaxonomy.js compiling canonical backend taxonomy to frontend
+│   ├── services/              # Domain logic (scoring, streaks, temporal correlation, assessment, reports)
+│   ├── tests/                 # 19 automated test files verifying backend logic natively with node:test
+│   ├── .env.example           # Environment configuration template
+│   ├── package.json           # Backend dependencies and scripts
+│   └── server.js              # Express app initialization and HTTP server bootstrap
 ├── frontend/
 │   ├── scripts/
-│   │   ├── proctoring/
-│   │   │   ├── observationState.js       # Pure DOM-independent CV stabilization state machine
-│   │   │   ├── screenMonitor.js          # Client-side screen capture & feature analyzer
-│   │   │   ├── screenObservationState.js # Pure DOM-independent screen state machine
-│   │   │   └── webcamCv.js               # Client-side MediaPipe Face Landmarker CV analyzer
-│   │   ├── auth.js                # Token management & authenticated fetch client
-│   │   ├── authGuard.js           # Route protection script for client views
-│   │   ├── chapter.js             # Chapter reading & completion toggle controller
-│   │   ├── chapterNames.js        # Generated client taxonomy contract
-│   │   ├── config.js              # Environment-aware backend API base URL
-│   │   ├── dashboard.js           # Dashboard metrics & streak renderer
-│   │   ├── firebaseConfig.js      # Firebase client configuration for Google OAuth
-│   │   ├── history.js             # Test history pagination controller
-│   │   ├── home.js                # Home view & continue-learning banner controller
-│   │   ├── login.js               # Local & Google login controller
-│   │   ├── mockTest.js            # JEE mock test & proctoring UI controller
-│   │   ├── profile.js             # User profile controller
-│   │   ├── register.js            # Local registration controller
-│   │   └── test.js                # Quiz state machine & 120s countdown timer
-│   ├── styles/
-│   │   ├── login.css              # Authentication views styling
-│   │   ├── mock-test.css          # JEE mock test & proctoring UI styling
-│   │   ├── profile.css            # Profile view styling
-│   │   └── style.css              # Main platform theme & responsive styling
-│   ├── chapter.html               # Chapter content reader view
-│   ├── chemistry.html             # Chemistry chapter grid view
-│   ├── dashboard.html             # Analytics & streak dashboard view
-│   ├── history.html               # Paginated test attempt history view
-│   ├── home.html                  # Main landing view with continue learning
-│   ├── index.html                 # Platform entrance view
-│   ├── maths.html                 # Mathematics chapter grid view
-│   ├── mock-test.html             # JEE mock test & proctored assessment view
-│   ├── physics.html               # Physics chapter grid view
-│   ├── profile.html               # User account profile view
-│   ├── register.html              # Registration view
-│   └── test.html                  # Timed test assessment view
-├── netlify.toml                   # Netlify static hosting headers & CORS policy
-└── README.md                      # Platform documentation
+│   │   ├── proctoring/        # Client-side webcam CV, screen monitoring, and pure state machines
+│   │   ├── auth.js            # Client token management and authenticated fetch wrapper
+│   │   ├── mockTest.js        # JEE Mock Test exam interface, evaluation gate & telemetry controller
+│   │   └── test.js            # Chapter practice quiz controller
+│   ├── styles/                # View-specific and global CSS stylesheets
+│   ├── mock-test.html         # JEE Main mock exam interface
+│   ├── test.html              # Chapter practice quiz interface
+│   └── *.html                 # Student views (home, chapter, dashboard, history, auth)
+├── netlify.toml               # Netlify hosting configuration, security headers, and caching policies
+└── README.md                  # System architecture and technical documentation
 ```
 
 ---
 
-## Local Setup
+## Local Setup & Development
 
 ### 1. Prerequisites
 * **Node.js**: `20.x` or `22.x`
-* **MongoDB**: Local MongoDB instance (`mongodb://127.0.0.1:27017/nexprep`) or a MongoDB Atlas connection URI
+* **MongoDB**: A running local MongoDB instance (`mongodb://127.0.0.1:27017/nexprep`) or a MongoDB Atlas URI
 
-### 2. Backend Installation & Configuration
+### 2. Backend Configuration & Setup
 
 ```bash
 cd backend
 npm install
 ```
 
-Create a `.env` file in the `backend/` directory:
+Create a `.env` file in the `backend/` directory based on `.env.example`:
 
 ```bash
 # Windows
@@ -785,43 +279,40 @@ copy .env.example .env
 cp .env.example .env
 ```
 
-Configure the environment variables in `backend/.env`:
+Configure `backend/.env`:
 
 ```ini
-# Server Configuration
 PORT=5000
 NODE_ENV=development
 MONGO_URI=mongodb://127.0.0.1:27017/nexprep
-JWT_SECRET=your_secure_development_jwt_secret
+JWT_SECRET=your_development_secret_key_here
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:5500,https://your-app.netlify.app
 
-# Optional: Set to true if local ISP fails MongoDB Atlas SRV DNS resolution
+# Optional: set to true if your ISP fails MongoDB Atlas SRV resolution
 DNS_OVERRIDE=false
 
-# CORS Whitelist (comma-separated origins)
-ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:5500,https://precious-griffin-831939.netlify.app
-
-# Firebase Admin Credentials (Optional for Google OAuth)
+# Optional: Firebase Admin credentials for Google OAuth verification
 FIREBASE_PROJECT_ID=your_firebase_project_id
 FIREBASE_CLIENT_EMAIL=your_firebase_client_email
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nyour_key\n-----END PRIVATE KEY-----\n"
 ```
 
-Compile the taxonomy contract and start the development server:
+Compile the frontend taxonomy contract and start the backend:
 
 ```bash
 # Compile canonical taxonomy into frontend contract
 npm run build:taxonomy
 
-# Run backend with automatic reload
+# Start development server with hot-reload
 npm run dev
 
-# Run test suite
+# Run automated test suite
 npm test
 ```
 
 ### 3. Frontend Setup
 
-Serve the static frontend files using any local web server:
+Serve the `frontend/` directory using any local static HTTP server:
 
 ```bash
 cd frontend
@@ -829,16 +320,8 @@ cd frontend
 # Using Python 3
 python -m http.server 3000
 
-# Alternatively using Node.js npx serve
+# Or using Node.js npx serve
 npx serve -l 3000 .
 ```
 
-Open `http://localhost:3000` in your browser.
-
----
-
-## Future Roadmap
-
-* **Mathematical Formula & Notation Rendering**: Integrate KaTeX or MathJax to render complex algebraic notation, calculus expressions, and chemical formulas natively within chapter notes and test questions.
-* **Full-Length Composite JEE Mock Exams**: Multi-subject exam mode simulating the full 3-hour JEE format across Physics, Chemistry, and Mathematics, complete with section-level time management and standard JEE negative marking evaluation.
-* **HTTP-Only Cookie Session Strategy**: Support an optional HTTP-only secure cookie session delivery alongside the existing Bearer JWT model, providing enhanced XSS mitigation for browser-only deployments.
+Open `http://localhost:3000` in your web browser. The frontend is configured to use the API server running on port 5000.

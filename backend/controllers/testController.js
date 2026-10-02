@@ -202,7 +202,6 @@ const getDashboard = async (req, res, next) => {
         subjectWiseTestCounts,
         insights,
         currentStreak,
-        streak: currentStreak,
       },
     });
   } catch (error) {

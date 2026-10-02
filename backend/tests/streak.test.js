@@ -187,7 +187,6 @@ describe('Targeted Streak Calculation Suite', () => {
       assert.equal(resPayload.dashboard.totalTests, 15);
       // The streak must be 15, proving it did NOT get truncated by history pagination limit (10)
       assert.equal(resPayload.dashboard.currentStreak, 15);
-      assert.equal(resPayload.dashboard.streak, 15);
     } finally {
       TestResult.find = originalFind;
     }

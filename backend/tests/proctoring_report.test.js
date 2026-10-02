@@ -15,6 +15,8 @@ const {
   buildTechnicalObservations,
   buildUnknowns,
   synthesizeReport,
+  formatTimeIST,
+  formatDateTimeIST,
 } = require('../services/proctoringReportService');
 const { getProctoringReport } = require('../controllers/proctoringController');
 const { protect } = require('../middleware/authMiddleware');
@@ -568,5 +570,347 @@ describe('Proctoring Report & Evidence-Grounded Reasoning Suite (Phase 6)', () =
     } finally {
       MockTestSession.findById = originalFindById;
     }
+  });
+
+  // ─── 33. Report Summary Metrics Integration ─────────────────────
+  it('33. synthesizeReport populates overview, proctoringOverview, and statistics aliases without 0s or N/A', () => {
+    const report = synthesizeReport(sampleMockSession, sampleProcSession, sampleMockTest, sampleEvents, sampleEpisodes);
+
+    // Overview checks
+    assert.ok(report.overview);
+    assert.equal(report.overview.testTitle, 'JEE Main Full Mock Assessment 1');
+    assert.equal(report.overview.examDurationSeconds, 3600);
+    assert.equal(report.overview.finalStatus, 'completed');
+    assert.ok(report.overview.examStartedAt);
+    assert.ok(report.overview.examEndedAt);
+
+    // Proctoring overview checks
+    assert.ok(report.proctoringOverview);
+    assert.equal(report.proctoringOverview.cameraState, 'inactive');
+    assert.equal(report.proctoringOverview.cameraStopCount, 1);
+    assert.equal(report.proctoringOverview.screenShareStopCount, 1);
+
+    // Statistics checks (both modern aliases and legacy keys)
+    assert.equal(report.statistics.totalRawEvents, 9);
+    assert.equal(report.statistics.totalEvents, 9);
+    assert.equal(report.statistics.totalTemporalEpisodes, 2);
+    assert.equal(report.statistics.totalEpisodes, 2);
+    assert.equal(report.statistics.longestFocusLossMs, 3500);
+    assert.equal(report.statistics.longestFaceAbsentMs, 2400);
+    assert.equal(report.statistics.longestScreenViewChangedMs, 1500);
+  });
+
+  // ─── 34. Result-Release & Report Access Integration ─────────────
+  it('34. getProctoringReport returns HTTP 200 for HELD_FOR_REVIEW session while getMockTestResult withholds scores', async () => {
+    const heldSession = {
+      ...sampleMockSession,
+      _id: 'session_held_report_test',
+      user: 'user_candidate_777',
+      evaluationStatus: 'HELD_FOR_REVIEW',
+      status: 'completed',
+      result: { score: 100 }, // Stale result that should be withheld
+    };
+    const procSession = {
+      ...sampleProcSession,
+      _id: 'proc_held_report_test',
+      mockTestSession: 'session_held_report_test',
+      user: 'user_candidate_777',
+    };
+
+    const origSessionFind = MockTestSession.findById;
+    const origProcFind = ProctoringSession.findById;
+    const origProcFindOne = ProctoringSession.findOne;
+    const origMockFind = MockTest.findById;
+
+    MockTestSession.findById = async () => heldSession;
+    ProctoringSession.findById = async () => procSession;
+    ProctoringSession.findOne = async () => procSession;
+    MockTest.findById = async () => sampleMockTest;
+
+    try {
+      const { getMockTestResult } = require('../controllers/mockTestController');
+
+      // 1. Result endpoint MUST withhold results
+      const resReq = {
+        params: { sessionId: 'session_held_report_test' },
+        user: { id: 'user_candidate_777' },
+      };
+      let resultStatusCode = null;
+      let resultBody = null;
+      const resRes = {
+        status: (code) => {
+          resultStatusCode = code;
+          return resRes;
+        },
+        json: (data) => {
+          resultBody = data;
+          return resRes;
+        },
+      };
+
+      await getMockTestResult(resReq, resRes, (err) => {
+        if (err) throw err;
+      });
+
+      assert.equal(resultStatusCode, 200);
+      assert.equal(resultBody.evaluationStatus, 'HELD_FOR_REVIEW');
+      assert.equal(resultBody.result, undefined);
+      assert.equal(resultBody.review, undefined);
+      assert.ok(resultBody.message.includes('pending standard review'));
+
+      // 2. Proctoring report endpoint MUST remain accessible
+      const reportReq = {
+        params: { sessionId: 'session_held_report_test' },
+        user: { id: 'user_candidate_777' },
+      };
+      let reportStatusCode = null;
+      let reportBody = null;
+      const reportRes = {
+        status: (code) => {
+          reportStatusCode = code;
+          return reportRes;
+        },
+        json: (data) => {
+          reportBody = data;
+          return reportRes;
+        },
+      };
+
+      await getProctoringReport(reportReq, reportRes, (err) => {
+        if (err) throw err;
+      });
+
+      assert.equal(reportStatusCode, 200);
+      assert.equal(reportBody.success, true);
+      assert.ok(reportBody.report);
+      assert.ok(reportBody.report.overview);
+      assert.ok(reportBody.report.statistics);
+    } finally {
+      MockTestSession.findById = origSessionFind;
+      ProctoringSession.findById = origProcFind;
+      ProctoringSession.findOne = origProcFindOne;
+      MockTest.findById = origMockFind;
+    }
+  });
+
+  // ─── 35. Fix 3 Regression: Normal Completed Session Reports Active Runtime State ────
+  it('35. Normal completed session reports active runtime state even though teardown marked session inactive', () => {
+    const normalEvents = [
+      {
+        _id: 'ev_norm_1',
+        type: 'CAMERA_STARTED',
+        source: 'media',
+        timestamp: new Date(baseDate.getTime() + 1000),
+        duration: 0,
+      },
+      {
+        _id: 'ev_norm_2',
+        type: 'SCREEN_SHARE_STARTED',
+        source: 'screen',
+        timestamp: new Date(baseDate.getTime() + 2000),
+        duration: 0,
+      },
+      {
+        _id: 'ev_norm_3',
+        type: 'FULLSCREEN_ENTERED',
+        source: 'browser',
+        timestamp: new Date(baseDate.getTime() + 3000),
+        duration: 0,
+      },
+    ];
+
+    // Proctoring session after teardown has inactive sensor states
+    const teardownProcSession = {
+      ...sampleProcSession,
+      cameraState: 'inactive',
+      screenShareState: 'inactive',
+      fullscreenState: 'inactive',
+    };
+
+    const report = synthesizeReport(sampleMockSession, teardownProcSession, sampleMockTest, normalEvents, []);
+
+    // Proctoring overview runtime states
+    assert.equal(report.proctoringOverview.cameraRuntimeState, 'active');
+    assert.equal(report.proctoringOverview.cameraState, 'active');
+    assert.equal(report.proctoringOverview.screenShareRuntimeState, 'active');
+    assert.equal(report.proctoringOverview.screenShareState, 'active');
+    assert.equal(report.proctoringOverview.fullscreenRuntimeState, 'active');
+    assert.equal(report.proctoringOverview.fullscreenState, 'active');
+
+    // Counts remain 0
+    assert.equal(report.proctoringOverview.cameraStopCount, 0);
+    assert.equal(report.proctoringOverview.screenShareStopCount, 0);
+    assert.equal(report.proctoringOverview.fullscreenExitCount, 0);
+
+    // Teardown states preserved
+    assert.equal(report.proctoringOverview.finalCameraState, 'inactive');
+    assert.equal(report.proctoringOverview.finalScreenShareState, 'inactive');
+    assert.equal(report.proctoringOverview.finalFullscreenState, 'inactive');
+  });
+
+  // ─── 36. Fix 3 Regression: Interrupted Session Reports Interrupted / Inactive Runtime State ──
+  it('36. Interrupted camera session reports interrupted/inactive runtime state with non-zero stop count', () => {
+    const interruptedEvents = [
+      {
+        _id: 'ev_int_1',
+        type: 'CAMERA_STARTED',
+        source: 'media',
+        timestamp: new Date(baseDate.getTime() + 1000),
+        duration: 0,
+      },
+      {
+        _id: 'ev_int_2',
+        type: 'CAMERA_STOPPED',
+        source: 'media',
+        timestamp: new Date(baseDate.getTime() + 5000),
+        duration: 0,
+      },
+    ];
+
+    const report = synthesizeReport(sampleMockSession, sampleProcSession, sampleMockTest, interruptedEvents, []);
+
+    // Camera must NOT be active
+    assert.notEqual(report.proctoringOverview.cameraState, 'active');
+    assert.equal(report.proctoringOverview.cameraRuntimeState, 'interrupted');
+    assert.equal(report.proctoringOverview.cameraState, 'inactive');
+    assert.equal(report.proctoringOverview.cameraStopCount, 1);
+
+    // CAMERA_STOPPED must appear in technical observations
+    const cameraStoppedObs = report.technicalObservations.find((o) => o.type === 'CAMERA_STOPPED');
+    assert.ok(cameraStoppedObs, 'Expected CAMERA_STOPPED in technicalObservations');
+  });
+
+  // ─── 37. Fix 3 Regression: Screen Interrupted Session Reports Interrupted Runtime State ──
+  it('37. Screen interrupted session reports interrupted runtime state with stop count >= 1', () => {
+    const screenInterruptedEvents = [
+      {
+        _id: 'ev_scr_1',
+        type: 'SCREEN_SHARE_STARTED',
+        source: 'screen',
+        timestamp: new Date(baseDate.getTime() + 1000),
+        duration: 0,
+      },
+      {
+        _id: 'ev_scr_2',
+        type: 'SCREEN_SHARE_STOPPED',
+        source: 'screen',
+        timestamp: new Date(baseDate.getTime() + 15000),
+        duration: 0,
+      },
+    ];
+
+    const report = synthesizeReport(sampleMockSession, sampleProcSession, sampleMockTest, screenInterruptedEvents, []);
+
+    assert.notEqual(report.proctoringOverview.screenShareState, 'active');
+    assert.equal(report.proctoringOverview.screenShareRuntimeState, 'interrupted');
+    assert.equal(report.proctoringOverview.screenShareState, 'inactive');
+    assert.equal(report.proctoringOverview.screenShareStopCount, 1);
+  });
+
+  // ─── 38. Fix 3 & 4 Regression: Backwards Compatibility ──────────────────────────────
+  it('38. synthesizeReport preserves all existing keys, types, and semantics for legacy consumers', () => {
+    const report = synthesizeReport(sampleMockSession, sampleProcSession, sampleMockTest, sampleEvents, sampleEpisodes);
+
+    // Check top-level contract sections
+    assert.ok(report.overview);
+    assert.ok(report.sessionOverview);
+    assert.ok(report.proctoringOverview);
+    assert.ok(report.statistics);
+    assert.ok(Array.isArray(report.timeline));
+    assert.ok(Array.isArray(report.relationships));
+    assert.ok(Array.isArray(report.technicalObservations));
+    assert.ok(Array.isArray(report.unknowns));
+    assert.ok(Array.isArray(report.limitationsAndUnknowns));
+    assert.ok(Array.isArray(report.evidence));
+
+    // Check backwards-compatible property types in proctoringOverview
+    assert.equal(typeof report.proctoringOverview.cameraStarted, 'boolean');
+    assert.equal(typeof report.proctoringOverview.cameraStopCount, 'number');
+    assert.equal(typeof report.proctoringOverview.cameraState, 'string');
+    assert.equal(typeof report.proctoringOverview.screenShareStarted, 'boolean');
+    assert.equal(typeof report.proctoringOverview.screenShareStopCount, 'number');
+    assert.equal(typeof report.proctoringOverview.screenShareState, 'string');
+    assert.equal(typeof report.proctoringOverview.fullscreenEntered, 'boolean');
+    assert.equal(typeof report.proctoringOverview.fullscreenExitCount, 'number');
+    assert.equal(typeof report.proctoringOverview.fullscreenState, 'string');
+  });
+
+  // ─── 39. Fix 4 Regression: Timezone Consistency Across All Report Sections ───────────
+  it('39. Same instant across different report sections corresponds to identical IST local time', () => {
+    const report = synthesizeReport(sampleMockSession, sampleProcSession, sampleMockTest, sampleEvents, sampleEpisodes);
+
+    // Check IST label and formatting on session overview
+    assert.equal(report.overview.timezone, 'IST (UTC+05:30)');
+    assert.ok(report.overview.startedAtFormatted.endsWith('IST'));
+    assert.ok(report.overview.submittedAtFormatted.endsWith('IST'));
+
+    // Check timeline episodes have IST timestamps
+    report.timeline.forEach((tl) => {
+      assert.ok(tl.startedAtFormatted.endsWith('IST'));
+      assert.ok(tl.endedAtFormatted.endsWith('IST'));
+      assert.ok(tl.narrative.includes('IST'));
+    });
+
+    // Check relationships have IST timestamps
+    report.relationships.forEach((rel) => {
+      assert.ok(rel.startedAtFormatted.endsWith('IST'));
+      assert.ok(rel.endedAtFormatted.endsWith('IST'));
+    });
+
+    // Check technical observations have IST timestamps
+    report.technicalObservations.forEach((tech) => {
+      assert.ok(tech.timestampFormatted.endsWith('IST'));
+      assert.ok(tech.description.includes('IST'));
+    });
+
+    // Check evidence items have IST timestamps
+    report.evidence.forEach((ev) => {
+      if (ev.startedAtFormatted) assert.ok(ev.startedAtFormatted.endsWith('IST'));
+      if (ev.timestampFormatted) assert.ok(ev.timestampFormatted.endsWith('IST'));
+    });
+
+    // An instant formatted with formatTimeIST matches everywhere
+    const instant = new Date('2026-09-20T14:00:01.000Z');
+    const expectedIST = formatTimeIST(instant);
+    assert.ok(expectedIST.endsWith('IST'));
+
+    const matchingTech = report.technicalObservations.find((t) => t.type === 'CAMERA_STARTED');
+    assert.equal(matchingTech.timestampFormatted, expectedIST);
+  });
+
+  // ─── 40. Fix 4 Regression: IST Conversion Correctness ────────────────────────────────
+  it('40. UTC instant 2026-09-30T04:21:33Z displays correctly as 09:51:33 IST and 30/09/2026, 09:51:33 IST', () => {
+    const testInstant = new Date('2026-09-30T04:21:33.000Z');
+    const timeFormatted = formatTimeIST(testInstant);
+    const dateTimeFormatted = formatDateTimeIST(testInstant);
+
+    assert.equal(timeFormatted, '09:51:33 IST');
+    assert.equal(dateTimeFormatted, '30/09/2026, 09:51:33 IST');
+  });
+
+  // ─── 41. Fix 4 Regression: Underlying Timestamp Integrity ───────────────────────────
+  it('41. Underlying Date objects retain original UTC instant without mutation', () => {
+    const originalUTC = '2026-09-20T14:00:00.000Z';
+    const report = synthesizeReport(sampleMockSession, sampleProcSession, sampleMockTest, sampleEvents, sampleEpisodes);
+
+    // Overview Date object
+    assert.ok(report.overview.startedAt instanceof Date);
+    assert.equal(report.overview.startedAt.toISOString(), originalUTC);
+
+    // Timeline Date object
+    assert.ok(report.timeline[0].startedAt instanceof Date);
+    assert.equal(report.timeline[0].startedAt.toISOString(), sampleEpisodes[0].startedAt.toISOString());
+
+    // Relationship Date object
+    assert.ok(report.relationships[0].startTime instanceof Date);
+    assert.equal(report.relationships[0].startTime.toISOString(), sampleEpisodes[0].relationships[0].startTime.toISOString());
+
+    // Technical observation Date object
+    assert.ok(report.technicalObservations[0].timestamp instanceof Date);
+    assert.equal(report.technicalObservations[0].timestamp.toISOString(), sampleEvents[0].timestamp.toISOString());
+
+    // Evidence Date object
+    assert.ok(report.evidence[0].startedAt instanceof Date);
+    assert.equal(report.evidence[0].startedAt.toISOString(), sampleEvents[0].timestamp.toISOString());
   });
 });

@@ -53,6 +53,12 @@ const mockTestSessionSchema = new mongoose.Schema(
       default: 'in_progress',
       index: true,
     },
+    evaluationStatus: {
+      type: String,
+      enum: ['PENDING', 'EVALUATED', 'HELD_FOR_REVIEW', 'HELD_TECHNICAL_REVIEW', 'REJECTED'],
+      default: 'PENDING',
+      index: true,
+    },
     startedAt: {
       type: Date,
       required: true,
@@ -118,6 +124,35 @@ const mockTestSessionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ProctoringSession',
       default: null,
+    },
+    // Associated proctoring assessment
+    proctoringAssessment: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ProctoringAssessment',
+      default: null,
+    },
+    // Review audit record for administrative resolution (Phase 4C)
+    reviewAudit: {
+      decision: {
+        type: String,
+        enum: ['RELEASE', 'REJECT'],
+        default: null,
+      },
+      reviewedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null,
+      },
+      reviewedAt: {
+        type: Date,
+        default: null,
+      },
+      notes: {
+        type: String,
+        maxlength: 1000,
+        trim: true,
+        default: '',
+      },
     },
   },
   {

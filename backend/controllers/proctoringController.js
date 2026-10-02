@@ -556,7 +556,22 @@ const getProctoringReport = async (req, res, next) => {
       throw new Error('Not authorized to access this exam session.');
     }
 
-    const procSession = await ProctoringSession.findOne({ mockTestSession: mockSession._id });
+    // Proctoring report boundary:
+    // If the mock session is in-progress, the proctoring report must not be accessible to candidate
+    if (mockSession.status === 'in_progress') {
+      res.status(400);
+      throw new Error('Proctoring report is not available while exam is in progress.');
+    }
+
+    let procSession = null;
+    if (mockSession.proctoringSession) {
+      const procQuery = ProctoringSession.findById(mockSession.proctoringSession);
+      procSession = procQuery && typeof procQuery.lean === 'function' ? await procQuery.lean() : await procQuery;
+    }
+    if (!procSession) {
+      const procQuery = ProctoringSession.findOne({ mockTestSession: mockSession._id });
+      procSession = procQuery && typeof procQuery.lean === 'function' ? await procQuery.lean() : await procQuery;
+    }
     if (!procSession) {
       res.status(404);
       throw new Error('Associated proctoring session not found.');
@@ -565,20 +580,37 @@ const getProctoringReport = async (req, res, next) => {
     const MockTest = require('../models/MockTest');
     let mockTest = null;
     if (mockSession.mockTest) {
-      const mockTestQuery = MockTest.findById(mockSession.mockTest);
-      mockTest = mockTestQuery && typeof mockTestQuery.lean === 'function' ? await mockTestQuery.lean() : await mockTestQuery;
+      try {
+        const mockTestQuery = MockTest.findById(mockSession.mockTest);
+        mockTest = mockTestQuery && typeof mockTestQuery.lean === 'function' ? await mockTestQuery.lean() : await mockTestQuery;
+      } catch (err) {
+        mockTest = null;
+      }
     }
 
     // Load raw events
-    let eventsQuery = ProctoringEvent.find({ proctoringSession: procSession._id });
-    if (typeof eventsQuery.sort === 'function') {
-      eventsQuery = eventsQuery.sort({ timestamp: 1 });
+    let events = [];
+    try {
+      let eventsQuery = ProctoringEvent.find({ proctoringSession: procSession._id || procSession.id });
+      if (eventsQuery && typeof eventsQuery.sort === 'function') {
+        eventsQuery = eventsQuery.sort({ timestamp: 1 });
+      }
+      events = (eventsQuery && typeof eventsQuery.lean === 'function' ? await eventsQuery.lean() : await eventsQuery) || [];
+    } catch (evErr) {
+      events = [];
     }
-    const events = (eventsQuery && typeof eventsQuery.lean === 'function' ? await eventsQuery.lean() : await eventsQuery) || [];
 
     // Synchronize Phase 5 episodes
-    const { syncSessionEpisodes } = require('../services/temporalCorrelationService');
-    const { episodes } = await syncSessionEpisodes(mockSession._id);
+    let episodes = [];
+    try {
+      const { syncSessionEpisodes } = require('../services/temporalCorrelationService');
+      const syncResult = await syncSessionEpisodes(mockSession._id);
+      if (syncResult && Array.isArray(syncResult.episodes)) {
+        episodes = syncResult.episodes;
+      }
+    } catch (syncErr) {
+      episodes = [];
+    }
 
     // Synthesize deterministic report
     const { synthesizeReport } = require('../services/proctoringReportService');
@@ -596,6 +628,97 @@ const getProctoringReport = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/mock-tests/:sessionId/proctoring/replay
+ * Development/Calibration Replay Endpoint (Phase D).
+ * Evaluates historical telemetry through the adjudication engine without mutating production state.
+ * Requires reviewer role.
+ */
+const replayProctoringAdjudication = async (req, res, next) => {
+  try {
+    const { sessionId } = req.params;
+    const { options } = req.body || {};
+
+    const mockSession = await MockTestSession.findById(sessionId);
+    if (!mockSession) {
+      res.status(404);
+      throw new Error('Mock test session not found.');
+    }
+
+    let procSession = null;
+    if (mockSession.proctoringSession) {
+      procSession = await ProctoringSession.findById(mockSession.proctoringSession);
+    }
+    if (!procSession) {
+      procSession = await ProctoringSession.findOne({ mockTestSession: mockSession._id });
+    }
+
+    const MockTest = require('../models/MockTest');
+    let mockTest = null;
+    if (mockSession.mockTest) {
+      mockTest = await MockTest.findById(mockSession.mockTest);
+    }
+
+    let events = [];
+    if (procSession) {
+      let eventsQuery = ProctoringEvent.find({ proctoringSession: procSession._id || procSession.id });
+      if (typeof eventsQuery.sort === 'function') {
+        eventsQuery = eventsQuery.sort({ timestamp: 1 });
+      }
+      events = (await eventsQuery) || [];
+    }
+
+    const { syncSessionEpisodes } = require('../services/temporalCorrelationService');
+    let episodes = [];
+    try {
+      const syncResult = await syncSessionEpisodes(mockSession._id);
+      if (syncResult && Array.isArray(syncResult.episodes)) {
+        episodes = syncResult.episodes;
+      }
+    } catch (e) {
+      episodes = [];
+    }
+
+    const { replayAdjudication } = require('../services/proctoringAdjudicationService');
+    const replayAnalysis = replayAdjudication({
+      events,
+      episodes,
+      mockTestSession: mockSession,
+      proctoringSession: procSession,
+      mockTest,
+      options: options || {},
+    });
+
+    return res.status(200).json({
+      success: true,
+      sessionId: mockSession._id,
+      replayAnalysis,
+    });
+  } catch (error) {
+    if (error.statusCode) res.status(error.statusCode);
+    return next(error);
+  }
+};
+
+/**
+ * GET /api/mock-tests/proctoring/drift
+ * Aggregate production telemetry drift metrics and operational alerts (Phase D).
+ * Requires reviewer role.
+ */
+const getProctoringDriftSummary = async (req, res, next) => {
+  try {
+    const { computeDriftMetrics } = require('../services/proctoringDriftService');
+    const driftData = await computeDriftMetrics();
+    return res.status(200).json({
+      success: true,
+      drift: driftData,
+    });
+  } catch (error) {
+    if (error.statusCode) res.status(error.statusCode);
+    return next(error);
+  }
+};
+
 module.exports = {
   startProctoring,
   recordProctoringEvent,
@@ -604,4 +727,6 @@ module.exports = {
   getProctoringTimeline,
   getProctoringCorrelations,
   getProctoringReport,
+  replayProctoringAdjudication,
+  getProctoringDriftSummary,
 };

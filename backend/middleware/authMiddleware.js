@@ -40,6 +40,24 @@ const protect = async (req, res, next) => {
   }
 };
 
+const requireReviewerRole = (req, res, next) => {
+  if (!req.user) {
+    res.status(401);
+    return next(new Error('Not authorized, authentication required.'));
+  }
+
+  const allowedRoles = ['reviewer', 'admin', 'instructor'];
+  const userRole = req.user.role || 'student';
+
+  if (!allowedRoles.includes(userRole)) {
+    res.status(403);
+    return next(new Error('Access denied: reviewer permissions required.'));
+  }
+
+  next();
+};
+
 module.exports = {
   protect,
+  requireReviewerRole,
 };

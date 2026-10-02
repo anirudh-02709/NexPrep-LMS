@@ -25,6 +25,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: 'local',
   },
+  role: {
+    type: String,
+    enum: ['student', 'reviewer', 'instructor', 'admin'],
+    default: 'student',
+  },
   createdAt: {
     type: Date,
     default: Date.now,
